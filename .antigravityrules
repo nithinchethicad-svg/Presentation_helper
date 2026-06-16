@@ -1,0 +1,4 @@
+# Windows Shell Execution Rules
+- Always use 'cmd /c' for all shell/terminal executions to ensure the process terminates correctly and sends an EOF signal on Windows.
+- Example: Use 'cmd /c npm install' instead of just 'npm install'.
+- Never leave an interactive shell or background process hanging open.

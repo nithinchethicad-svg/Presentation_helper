@@ -1,0 +1,32 @@
+# Dependency directories
+**/node_modules/
+node_modules/
+
+# Production builds
+frontend/dist/
+dist/
+dist-ssr/
+
+# Environment files and secrets
+**/.env
+**/.env.local
+**/.env.*.local
+.env
+.env.local
+
+# Temp and OS files
+**/officeParserTemp/
+officeParserTemp/
+.DS_Store
+Thumbs.db
+*.log
+*.local
+
+# IDE/Editor folders
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
