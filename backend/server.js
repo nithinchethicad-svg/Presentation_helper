@@ -71,7 +71,7 @@ logEvent('info', `Configured Gemini API keys for rotation: ${apiKeys.length}`);
  * Helper function to call the Gemini API with key rotation.
  * If one key fails (e.g. rate limit), it automatically rotates to the next key.
  */
-async function generateContentWithRotation(prompt, systemInstruction) {
+async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}) {
   if (apiKeys.length === 0) {
     const errorMsg = "No Gemini API keys configured. Please add keys to your backend/.env file.";
     logEvent('error', errorMsg);
@@ -98,7 +98,10 @@ async function generateContentWithRotation(prompt, systemInstruction) {
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
         contents: prompt,
-        config: systemInstruction ? { systemInstruction } : undefined
+        config: {
+          ...(systemInstruction ? { systemInstruction } : {}),
+          ...extraConfig
+        }
       });
 
       // Update current index to this successful key
@@ -199,6 +202,23 @@ function cleanHtmlResponse(text) {
     clean = clean.slice(0, -3);
   }
   return clean.trim();
+}
+
+/**
+ * Strips markdown code fences (like ```json ... ```) and parses the JSON safely
+ */
+function cleanAndParseJson(text) {
+  if (!text) return null;
+  let clean = text.trim();
+  if (clean.startsWith("```json")) {
+    clean = clean.substring(7);
+  } else if (clean.startsWith("```")) {
+    clean = clean.substring(3);
+  }
+  if (clean.endsWith("```")) {
+    clean = clean.substring(0, clean.length - 3);
+  }
+  return JSON.parse(clean.trim());
 }
 
 /**
@@ -602,205 +622,113 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       detailLevel,
       writingTheme,
       eventName, eventDate, coverInfo, additionalInstructions,
-      extractEventName, extractEventDate, extractCoverInfo
+      extractEventName, extractEventDate, extractCoverInfo,
+      strictFileContentOnly
     } = req.body;
 
-    // Parse boolean flags from string ('true'/'false')
     const bExtractEventName  = extractEventName  === 'true';
     const bExtractEventDate  = extractEventDate  === 'true';
     const bExtractCoverInfo  = extractCoverInfo  === 'true';
     const bAutoExtractColor  = colorScheme === 'Auto-Extract Theme';
+    const bStrictFileContentOnly = strictFileContentOnly === 'true';
 
     const files = req.files || [];
+    if (files.length === 0) return res.status(400).json({ error: 'No files were uploaded.' });
 
-    if (files.length === 0) {
-      return res.status(400).json({ error: 'No files were uploaded.' });
-    }
-
-    // Resolve effective setting label
-    const effectiveSetting = setting === 'Other' && customSetting
-      ? customSetting
-      : setting;
+    const effectiveSetting = setting === 'Other' && customSetting ? customSetting : setting;
 
     logEvent('info', `Received generate request with ${files.length} files.`, {
       colorScheme, detailLevel, writingTheme,
       targetAudience, setting: effectiveSetting,
-      bExtractEventName, bExtractEventDate, bExtractCoverInfo, bAutoExtractColor
+      bExtractEventName, bExtractEventDate, bExtractCoverInfo, bAutoExtractColor, bStrictFileContentOnly
     });
 
-    // 1. Extract text from files in parallel
     const textExtractionPromises = files.map(file => {
       const ext = file.originalname.split('.').pop().toLowerCase();
       return parseFileBuffer(file.buffer, ext)
         .then(text => `--- FILE: ${file.originalname} ---\n${text}`)
         .catch(err => {
           logEvent('error', `Error parsing file ${file.originalname}: ${err.message}`);
-          throw new Error(`Failed to parse file ${file.originalname}. Ensure it is a valid .docx or .pptx file.`);
+          throw new Error(`Failed to parse file ${file.originalname}.`);
         });
     });
 
     const fileTexts = await Promise.all(textExtractionPromises);
     const combinedSourceText = fileTexts.join('\n\n');
 
-    // ── 2a. Detail Level Instruction ─────────────────────────────────────────
     const detailInstructions = {
-      'Brief': 'Produce a HIGH-IMPACT, CONDENSED summary. Focus EXCLUSIVELY on the absolute core highlights, main thesis, and 3-5 key takeaways per section. Omit supporting detail and examples unless critical. Pages should be few and lean.',
-      'Moderate': 'Produce a BALANCED, STANDARD summary. Cover all primary sections, speaker insights, and main slide concepts. Include supporting points where they add clarity. Standard page count appropriate to the source material.',
-      'Comprehensive': 'Produce an EXHAUSTIVE, DEEP BREAKDOWN. Capture ALL terminology, definitions, explanations, formulas, step-by-step processes, context, examples, and detailed supporting notes. No important concept should be omitted. Generate as many pages as needed — there is no page cap.'
+      'Brief': 'Produce a HIGH-IMPACT, CONDENSED summary. Focus EXCLUSIVELY on the absolute core highlights, main thesis, and 3-5 key takeaways per section.',
+      'Moderate': 'Produce a BALANCED, STANDARD summary. Cover all primary sections, speaker insights, and main slide concepts.',
+      'Comprehensive': 'Produce an EXHAUSTIVE, DEEP BREAKDOWN. Capture ALL terminology, definitions, explanations, formulas, and detailed supporting notes.'
     };
     const detailInstruction = detailInstructions[detailLevel] || detailInstructions['Moderate'];
 
-    // ── 2b. Vibe Theme Visual Design Rules ──────────────────────────────────
     const vibeThemeRules = {
-      'Warm & Encouraging': `
-        TYPOGRAPHY: Use Google Fonts "Nunito" (rounded, friendly) for headings and "Lato" for body. H1: oversized (2.5em+), bold, warm-toned. H2: 1.4em, semi-bold. Body text: 1em, generous line-height 1.7.
-        SHAPES & CONTAINERS: Use soft rounded rectangles (border-radius: 20-30px) for content cards. Add organic wave SVG dividers between sections. Use gentle pastel fills (peach, lavender, soft orange) for callout boxes.
-        INFOGRAPHICS: Break key points into "Encouragement Cards" with a large emoji/icon and short motivational statement. Use side-by-side two-column layouts for tips. Add "Remember This!" callout bubbles with a speech-bubble shape using CSS clip-path or border tricks.
-        COLOR PALETTE: Warm amber (#f97316), soft peach (#fed7aa), light cream (#fffbeb), with dark chocolate (#1c1917) for text.
-      `,
-      'Formal & Professional': `
-        TYPOGRAPHY: Use Google Fonts "Inter" (crisp, geometric) for both headings and body. H1: bold 2em, all-caps with letter-spacing 0.08em. H2: 1.3em, medium weight, thin bottom border. Body: 0.95em, tight line-height 1.5.
-        SHAPES & CONTAINERS: Use sharp-edged rectangles (border-radius: 4px max) for all content blocks. Apply crisp thin 1px borders (#334155) on cards. Use a strict grid layout with clear column separators.
-        INFOGRAPHICS: Use structured data tables with alternating row shading. Add numbered list badges (e.g. "01.", "02.") for ordered points. Use thin horizontal rules to separate all sections.
-        COLOR PALETTE: Deep slate (#1e293b), cool grey (#64748b), white (#ffffff), and a single corporate accent (e.g. #2563eb or #0f172a).
-      `,
-      'Fun & Energetic': `
-        TYPOGRAPHY: Use Google Fonts "Poppins" (bold) for H1 and "Comic Neue" or "Fredoka One" for subheadings. H1: massive, 3em+, heavy weight, rotated slightly or with an underline squiggle. H2: 1.5em, bold, colourful.
-        SHAPES & CONTAINERS: Use asymmetrical card shapes with heavy drop-shadows (box-shadow: 8px 8px 0px #000). Add squiggly or wavy borders using SVG. Use triangular accent shapes in corners. Mix background colours per section (never plain white).
-        INFOGRAPHICS: Use large "Stat Badges" (big number + descriptor). Add "Did You Know?" callout boxes with a starburst or explosion shape. Use icon-heavy bullet points. Add confetti or star decorative elements.
-        COLOR PALETTE: Hot pink (#ec4899), electric yellow (#facc15), deep purple (#7c3aed), bright teal (#06b6d4) on a near-white or light grey base.
-      `,
-      'Reflective & Thoughtful': `
-        TYPOGRAPHY: Use Google Fonts "Playfair Display" (elegant serif) for H1 headings and "Source Serif 4" or "Georgia" for body. H1: 2.2em, italic, generous margins. H2: 1.2em, small-caps. Body: 1em, wide line-height 1.8, ample paragraph spacing.
-        SHAPES & CONTAINERS: Minimalist fine-line borders (1px solid #d1d5db). Extra-wide padding (30-40px) inside content blocks. Ample negative/blank space between sections. No heavy backgrounds — white or very light grey only.
-        INFOGRAPHICS: Use pull-quote blocks (large left-border accent line + italic quote text). Add "Pause & Reflect" prompts in bordered aside boxes. Use sparse, refined iconography. Avoid heavy infographic elements.
-        COLOR PALETTE: Soft sage (#d1fae5), warm off-white (#fafaf9), medium grey (#6b7280), and one contemplative accent like forest green (#059669) or dusty blue (#7c9eb2).
-      `,
-      'Educational & Informative': `
-        TYPOGRAPHY: Use Google Fonts "Roboto" for body text and "Roboto Slab" or "DM Sans" for headings. H1: bold 2em with a coloured underline. H2: 1.3em with a numbered prefix badge. Body: 0.95em, clear 1.6 line-height.
-        SHAPES & CONTAINERS: Use connected flowchart-style containers for sequential content (use CSS border + pseudo-element arrows). Use grid blocks with labelled headers for each content area. Use process arrows (→) between steps. Add "Key Term" definition boxes with a left-coloured border.
-        INFOGRAPHICS: Use side-by-side comparison tables. Add process flow diagrams (Step 1 → Step 2 → Step 3) using CSS flexbox boxes with connector arrows. Include "Key Concept" and "Example" callout boxes with distinct background colours.
-        COLOR PALETTE: Academic blue (#2563eb), knowledge gold (#f59e0b), white (#ffffff), with light blue section backgrounds (#eff6ff).
-      `,
-      'Motivational & Inspiring': `
-        TYPOGRAPHY: Use Google Fonts "Montserrat" (tall, bold) for H1 — extreme weight (900), all-caps, with a gradient or coloured fill. Use "Open Sans" for body. H1: 2.8em+, all-caps. H2: 1.4em, bold, coloured. Body: 1em, 1.6 line-height.
-        SHAPES & CONTAINERS: Use forward-slashing diagonal panel dividers (CSS clip-path: polygon) between sections. Add upward-pointing chevron shapes above key sections. Use milestone timeline flags for sequential content. Backgrounds should have bold gradient fills per section.
-        INFOGRAPHICS: Use large "Hero Numbers" (giant stat + descriptor) to highlight key metrics. Add milestone banners ("Goal 1", "Goal 2") in a horizontal ribbon layout. Use upward arrow motifs (▲) for progress. Bold "Call to Action" buttons or boxes at the end of each page.
-        COLOR PALETTE: Deep purple (#7c3aed), electric indigo (#4f46e5), vibrant gold (#fbbf24), and white on bold dark backgrounds.
-      `
+      'Warm & Encouraging': 'Use Google Fonts "Nunito" (rounded) and "Lato". Soft rounded rectangles (border-radius: 20-30px). Warm amber, peach, cream.',
+      'Formal & Professional': 'Use Google Fonts "Inter". Sharp-edged rectangles (border-radius: 4px). Slate, grey, white.',
+      'Fun & Energetic': 'Use Google Fonts "Poppins". Asymmetrical card shapes, heavy drop-shadows. Hot pink, electric yellow, deep purple.',
+      'Reflective & Thoughtful': 'Use Google Fonts "Playfair Display" and "Source Serif 4". Minimalist fine-line borders. Sage, off-white, forest green.',
+      'Educational & Informative': 'Use Google Fonts "Roboto" and "Roboto Slab". Flowchart-style containers, grid blocks. Academic blue, gold, white.',
+      'Motivational & Inspiring': 'Use Google Fonts "Montserrat". Forward-slashing diagonal dividers. Deep purple, indigo, vibrant gold.'
     };
     const vibeInstruction = vibeThemeRules[writingTheme] || vibeThemeRules['Formal & Professional'];
 
-    // ── 2c. AI-Extract metadata block ────────────────────────────────────────
     let extractionInstructions = '';
     if (bExtractEventName || bExtractEventDate || bExtractCoverInfo) {
-      extractionInstructions = `
-AI EXTRACTION INSTRUCTIONS:
-The following fields should be AUTO-EXTRACTED from the source material (do not leave them blank):
-${bExtractEventName  ? '- EVENT NAME: Scan the source for the event or session title and use it as the document/cover title.' : ''}
-${bExtractEventDate  ? '- EVENT DATE & TIME: Scan the source for any date or time references and include them on the cover page.' : ''}
-${bExtractCoverInfo  ? '- COVER PEOPLE/BRANDING: Scan for speaker names, organisation names, or logos mentioned in the source and feature them prominently on the cover.' : ''}
-`;
+      extractionInstructions = `AI EXTRACTION: Scan source for: ${bExtractEventName ? 'Event Name, ' : ''}${bExtractEventDate ? 'Event Date, ' : ''}${bExtractCoverInfo ? 'Speaker/Branding.' : ''}`;
     }
 
-    // ── 2d. Manually-provided metadata block ─────────────────────────────────
     const metadataBlock = [
-      !bExtractEventName  && eventName  ? `- Event / Session Name: ${eventName}` : '',
-      !bExtractEventDate  && eventDate  ? `- Date & Time: ${eventDate}` : '',
-      !bExtractCoverInfo  && coverInfo  ? `- Cover / Branding: ${coverInfo}` : '',
-      additionalInstructions ? `- Additional Instructions: ${additionalInstructions}` : ''
+      !bExtractEventName  && eventName  ? `- Event Name: ${eventName}` : '',
+      !bExtractEventDate  && eventDate  ? `- Date: ${eventDate}` : '',
+      !bExtractCoverInfo  && coverInfo  ? `- Branding: ${coverInfo}` : '',
+      additionalInstructions ? `- Instructions: ${additionalInstructions}` : ''
     ].filter(Boolean).join('\n');
 
-    // ── 2e. Auto-Extract Colour instruction ───────────────────────────────────
-    const colorInstruction = bAutoExtractColor
-      ? `Intelligently analyse the source material structure (especially slide titles, headers, and any colour references mentioned) and select a harmonious primary colour palette that best reflects the content's visual identity. Apply these extracted colours throughout the HTML <style> block.`
-      : `Design the page using a modern, harmonious colour scheme matching this vibe: "${colorScheme}". Use appropriate background, font, card, and border colours.`;
+    const colorInstruction = bAutoExtractColor ? 'Analyze source material and select a harmonious primary color palette.' : `Design using theme "${colorScheme}".`;
 
-    // ── 3. Build system instruction ──────────────────────────────────────────
-    const systemInstruction =
-      "You are an expert content designer and summary publisher. " +
-      "Your goal is to transform raw presentation slides or speaker notes into an elegant, high-impact, standalone HTML/CSS takeaway summary. " +
-      "You must return ONLY valid, self-contained HTML (including full CSS styled inside a <style> block in the <head>). " +
-      "Your output must structure the takeaway notes page-by-page using A4 dimensions. Each page must be wrapped in a <div class=\"page\">...</div> container. " +
-      "Under no circumstances should any element inside the document have scrollbars or scrollable overflow (do NOT use overflow: scroll, overflow: auto, or overflow-y: auto on code blocks, tables, panels, or boxes). All content must be fully visible and wrap naturally. " +
-      "Do NOT wrap the output in markdown backticks or include any text outside the <html> tags.";
+    // ── STAGE 1: Blueprint Prompts ─────────────────────────────────────────
+    logEvent('info', 'Executing Stage 1: Planning page-by-page layout blueprint...');
 
-    const prompt = `
-Task: Generate an elegant, themed takeaway notes document from the source text below.
+    const blueprintSystemInstruction = 
+      "You are an expert layout designer. Design a JSON array of page plan objects. Total words per page <= 250. Return ONLY raw JSON. " +
+      "CRITICAL: You must strictly preserve and adopt all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers and subheaders take second priority). Do NOT invent new headers, combine slides under arbitrary new sections, or reorganize the flow. " +
+      (bStrictFileContentOnly 
+        ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, external history, or context not written in the files. If it is not in the text, it does not exist."
+        : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
---- Source Text ---
-${combinedSourceText}
--------------------
+    const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "wordBudget", "layoutStylingDetails"}]}].`;
 
-Core Preferences:
-- Colour Scheme: ${colorInstruction}
-- Content Priorities & Key Highlights: Focus heavily on ${contentPriorities}
-- Primary Audience: ${targetAudience}
-- Setting / Context: Optimised for ${effectiveSetting}
-- Tone & Formatting Style: Intelligently infer the most appropriate tone and formatting style based on the combination of the primary audience (${targetAudience}), the setting (${effectiveSetting}), and the writing vibe & theme (${writingTheme}). Do not use a generic style — tailor it precisely.
+    let blueprintText = await generateContentWithRotation(blueprintPrompt, blueprintSystemInstruction, { responseMimeType: "application/json" });
+    let blueprintJSON = cleanAndParseJson(blueprintText);
 
-Detail Level Instruction:
-${detailInstruction}
+    // ── STAGE 2: HTML Generation Prompts ───────────────────────────────────
+    logEvent('info', 'Executing Stage 2: Drafting HTML summary...');
 
-${metadataBlock ? `Event Metadata:\n${metadataBlock}\n` : ''}
-${extractionInstructions}
+    const htmlSystemInstruction = 
+      "Create standalone HTML/CSS notes strictly following the blueprint. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
+      "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers take second priority). Do NOT invent new headers, rename slides, or merge unrelated topics under new titles. " +
+      (bStrictFileContentOnly
+        ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
+        : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-Vibe Theme Design Rules — APPLY THESE EXACTLY for the "${writingTheme}" theme:
-${vibeInstruction}
+    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: A4 container (.page), print-safe styles, no hover, no overflow.`;
 
-General Design Requirements:
-1. Make the layout look like a premium, professional A4 PDF report or slide handout. It must look absolutely stunning.
-2. Structure the document page-by-page by wrapping each page's content in a <div class="page">...</div> element. Split the summary logically across pages if it is long.
-3. Inside the <style> block, define the page container for screen and printing:
-   .page {
-     width: 210mm;
-     min-height: 297mm;
-     padding: 20mm;
-     margin: 0 auto 20px auto;
-     background: white;
-     color: #0f172a;
-     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-     box-sizing: border-box;
-     page-break-after: always;
-     position: relative;
-     overflow: hidden;
-   }
-4. Apply CSS print styling so that when printed or saved as PDF, the grey background disappears and only the A4 pages are saved:
-   @media print {
-     @page { size: A4; margin: 0; }
-     body { background: white !important; margin: 0 !important; padding: 0 !important; }
-     .page { margin: 0 !important; box-shadow: none !important; width: 210mm !important; height: 297mm !important; }
-   }
-5. CRITICAL: Under no circumstances should any element inside the document have scrollbars or scrollable overflow (no 'overflow: scroll', 'overflow: auto', or 'overflow-y: auto' are allowed on tables, code blocks, or custom boxes). All content must be fully visible and fit or wrap naturally within the page dimensions. If content is too long, wrap it onto another A4 page.
-6. PRINT-SAFE — NO HOVER EFFECTS: Do NOT use any :hover CSS pseudo-class anywhere in the document. Do NOT use transition, animation, cursor: pointer, or any interactive style. The document must look identical whether the mouse is hovering or not.
-7. NO OVERLAPPING CONTENT: All elements must be laid out in normal document flow. Do not use position: fixed or position: sticky. If you use position: absolute, ensure the parent container has sufficient height so nothing overlaps the content below it. Every word and heading must be fully visible — nothing should be clipped, hidden, or partially covered.
-8. PREVENT TEXT BLEEDING: All heading elements (h1, h2, h3) must include 'word-break: break-word; overflow-wrap: break-word; max-width: 100%;' in their CSS. Do NOT use font sizes larger than 2.8em for h1, 1.8em for h2, or 1.3em for h3. The .page container has 'overflow: hidden' — any text that is too large will be clipped. Ensure all text fits comfortably within the 210mm page width with padding accounted for.
-9. SHAPE CONTAINMENT — TEXT MUST FIT INSIDE SHAPES: Every visual shape (callout box, card, badge, stat block, bubble, banner) MUST be sized to contain its text content. Rules:
-   a. NEVER use a fixed 'height' on a shape container. ALWAYS use 'min-height' so it can expand if text is longer than expected.
-   b. Give all shape containers at least 12px of padding on all sides so text never touches the border or edge of the shape.
-   c. Text inside shapes must use 'font-size' of at least 12px (9pt). Never go smaller than this for print readability.
-   d. If a shape is a fixed-width column or badge, the font-size should automatically scale down using 'clamp(12px, 1.5vw, 1em)' or similar to fit, rather than overflowing.
-   e. Every shape's CSS must include: 'box-sizing: border-box; overflow: visible; word-wrap: break-word;'
-   f. Do NOT layer shapes on top of each other using absolute positioning unless the parent container is explicitly sized to contain them both without overlap.
-10. Return ONLY the HTML code. No markdown wrapper.
-`;
+    let htmlDraft = await generateContentWithRotation(htmlPrompt, htmlSystemInstruction);
 
-    // 4. Call AI with rotation
-    const rawAiResponse = await generateContentWithRotation(prompt, systemInstruction);
-    const cleanHTML = stripPrintUnfriendlyStyles(cleanHtmlResponse(rawAiResponse));
+    // ── STAGE 3: HTML Validation Prompts ───────────────────────────────────
+    logEvent('info', 'Executing Stage 3: Running HTML validation...');
+    const validatorSystemInstruction = "Fix all overflow, print-safety (no hover/transitions), and CSS containment violations. Return ONLY corrected HTML.";
+    const validatorPrompt = `Inspect for violations: fixed heights, overflow, hover/transitions, absolute overlap. Fix and return cleaned code.\n\n${cleanHtmlResponse(htmlDraft)}`;
+    let htmlValidated = await generateContentWithRotation(validatorPrompt, validatorSystemInstruction);
 
-    res.json({ html: cleanHTML });
+    res.json({ html: stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated)) });
 
   } catch (error) {
-    logEvent('error', `Generate request failed`, { message: error.message, status: error.status });
-    const status = error.status || 500;
-    res.status(status).json({
-      error: status === 429 ? 'rate_limit_exceeded' : 'error',
-      message: error.message || 'An error occurred during generation.'
-    });
+    logEvent('error', `Generate failed: ${error.message}`);
+    res.status(error.status || 500).json({ error: error.status === 429 ? 'rate_limit_exceeded' : 'error' });
   }
 });
-
 
 /**
  * Screen 3 - Revise Takeaway Notes Endpoint
@@ -814,6 +742,11 @@ app.post('/api/revise', async (req, res) => {
     }
 
     logEvent('info', `Received revision command: "${instructions}"`);
+
+    // ==========================================
+    // REVISION STAGE 1: DIRECT REVISION
+    // ==========================================
+    logEvent('info', 'Executing Revision Stage 1: Applying user revisions...');
 
     const systemInstruction =
       "You are an expert web designer and editor. " +
@@ -840,12 +773,42 @@ Please update the HTML/CSS code to implement the user's instructions, ensuring t
 `;
 
     const rawAiResponse = await generateContentWithRotation(prompt, systemInstruction);
-    const cleanHTML = stripPrintUnfriendlyStyles(cleanHtmlResponse(rawAiResponse));
+
+    // ==========================================
+    // REVISION STAGE 2: REVISION VALIDATION
+    // ==========================================
+    logEvent('info', 'Executing Revision Stage 2: Running HTML/CSS validation and linter...');
+
+    const validatorSystemInstruction =
+      "You are a strict CSS/HTML QA engineer and code linter. " +
+      "Your task is to analyze the self-contained HTML/CSS code and fix any design or print-safety violations. " +
+      "You must return ONLY the corrected, clean self-contained HTML/CSS document. Do NOT wrap in markdown backticks.";
+
+    const validatorPrompt = `
+Task: Inspect the generated HTML/CSS code below for any formatting, overflow, page-bleeding, or print-safety violations, and output a corrected, fully safe version.
+
+--- HTML/CSS Code to Inspect ---
+${cleanHtmlResponse(rawAiResponse)}
+--------------------------------
+
+Checklist of violations you MUST correct if present:
+1. FIXED HEIGHTS: Any container inside a page (like .card, .callout, .badge, .container, .sidebar, div) that has a fixed "height: Xpx" or "height: Xrem". You MUST convert it to "min-height: Xpx; height: auto" so the shape expands with text.
+2. TEXT OVERFLOW: Any heading, paragraph, list item, or span that does not have "word-break: break-word; overflow-wrap: break-word;". Ensure these are added to prevent text bleeding out of the A4 page.
+3. HOVER / TRANSITIONS: If you see any ":hover" pseudo-class, transition property, animation, cursor: pointer, transform-on-hover, or absolute fixed/sticky positions, you MUST remove them.
+4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
+5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
+6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
+
+Return ONLY the final corrected HTML/CSS code. Do NOT add markdown code fences (like \`\`\`html) or any conversational text.
+`;
+
+    let htmlValidated = await generateContentWithRotation(validatorPrompt, validatorSystemInstruction);
+    const cleanHTML = stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated));
 
     res.json({ html: cleanHTML });
 
   } catch (error) {
-    logEvent('error', `Revision request failed`, { message: error.message, status: error.status });
+    logEvent('error', `Revision request failed: ${error.message}`);
     const status = error.status || 500;
     res.status(status).json({ 
       error: status === 429 ? 'rate_limit_exceeded' : 'error', 

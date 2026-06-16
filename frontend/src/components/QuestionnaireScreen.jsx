@@ -220,7 +220,7 @@ const QuestionnaireScreen = ({ preferences, setPreferences, onBack, onGenerate }
               <h3 style={cardHeadingStyle}>Content & Layout Structure</h3>
 
               {/* Detail Level */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">Level of Detail</label>
                 <p className="form-subtitle">How thorough should the takeaway notes be?</p>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -245,6 +245,60 @@ const QuestionnaireScreen = ({ preferences, setPreferences, onBack, onGenerate }
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{opt.desc}</div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Content Fidelity Constraints */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Content Fidelity Constraints</label>
+                <p className="form-subtitle">Control how closely the AI summarized text adheres to your source material.</p>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-light)',
+                  background: '#f8fafc',
+                  gap: '1rem'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a', marginBottom: '0.15rem' }}>Strict File Content Limit</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                      Summarize ONLY information explicitly stated in your uploaded documents. Outside definitions, history, or background details will not be added.
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}>
+                      <input
+                        type="checkbox"
+                        checked={preferences.strictFileContentOnly || false}
+                        onChange={e => handleChange('strictFileContentOnly', e.target.checked)}
+                        style={{ display: 'none' }}
+                      />
+                      <div style={{
+                        width: '42px',
+                        height: '24px',
+                        borderRadius: '12px',
+                        background: preferences.strictFileContentOnly ? '#059669' : '#cbd5e1',
+                        position: 'relative',
+                        transition: 'background 0.2s',
+                        padding: '2px',
+                        boxSizing: 'border-box'
+                      }}>
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: 'white',
+                          position: 'absolute',
+                          left: preferences.strictFileContentOnly ? '20px' : '2px',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

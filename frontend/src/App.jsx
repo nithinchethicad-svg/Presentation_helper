@@ -18,6 +18,7 @@ const DEFAULT_PREFERENCES = {
   extractEventName: false,
   extractEventDate: false,
   extractCoverInfo: false,
+  strictFileContentOnly: true,
 };
 
 const BACKEND_URL = 'http://localhost:5000';
