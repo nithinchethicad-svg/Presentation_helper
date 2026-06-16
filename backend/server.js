@@ -341,21 +341,35 @@ function stripPrintUnfriendlyStyles(html) {
   .page aside, .page figure, .page blockquote {
     min-height: 0 !important;
     height: auto !important;
-    overflow: visible !important;
+    overflow: visible;
   }
 
-  /* Prevent self-contained layout blocks from breaking mid-element (avoid table, list, aside containers) */
+  /* Restrict print breaks to specific blocks */
   .card, .callout-box, .stat-card, .notes-card, .step-card,
   .page tr, .page li, .page blockquote, .page figure {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  /* Minimum readable font size (9pt = 12px for print) */
-  .page div *, .page section *, .page article * { font-size: max(0.8em, 12px); }
-  .page h1 { font-size: min(2.8em, 56pt) !important; }
-  .page h2 { font-size: min(1.8em, 36pt) !important; }
-  .page h3 { font-size: min(1.3em, 26pt) !important; }
+  /* FONT SIZE HIERARCHY */
+  .page .title { font-size: 28px !important; font-weight: 800 !important; }
+  .page .subtitle { font-size: 21px !important; font-weight: 600 !important; }
+  .page .section-title { font-size: 18px !important; font-weight: 700 !important; }
+  .page h1, .page .header { font-size: 16px !important; font-weight: 700 !important; }
+  .page h2, .page .sub-header { font-size: 14px !important; font-weight: 600 !important; }
+  .page th, .page .box-header, .page .card-title { font-size: 13px !important; font-weight: 700 !important; }
+  .page td, .page p, .page li, .page .body-text { font-size: 12px !important; font-weight: 400 !important; line-height: 1.5 !important; }
+
+  /* POSITION PAGE NUMBERS AT BOTTOM */
+  .page { position: relative !important; }
+  .page .page-number, .page .footer {
+    position: absolute !important;
+    bottom: 12mm !important;
+    right: 12mm !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    opacity: 0.8 !important;
+  }
 
   /* Padding inside shapes - text never touches the border */
   .page div[style*="border-radius"],
@@ -407,8 +421,8 @@ function stripPrintUnfriendlyStyles(html) {
     /* Restrict print breaks to specific blocks */
     .card, .callout-box, .stat-card, .notes-card, .step-card,
     .page tr, .page li, .page blockquote, .page figure {
-      break-inside: avoid !important;
-      page-break-inside: avoid !important;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .page { overflow: hidden !important; }
   }
@@ -805,12 +819,13 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
       "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
       "CRITICAL LAYOUT: You must wrap each page defined in the blueprint in a separate <div class=\"page\">...</div> container. The output must consist of multiple .page containers, one for each page in the blueprint. Do NOT merge them into a single container. " +
+      "PAGE DENSITY & GAPS: Avoid leaving large empty spaces at the bottom of pages. Pack elements efficiently. If keeping a card, list, or block together would result in a large empty space (more than 20% of the page height) on the previous page, allow the card or block to break across pages naturally instead of pushing it to the next page. Do not unnecessarily increase the page count. " +
       "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers take second priority). Do NOT invent new headers, rename slides, or merge unrelated topics under new titles. " +
       (bStrictFileContentOnly
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), fancy Google Fonts on headings, strict class-based font size hierarchy (Title: 28px, Subtitle: 21px, Section Title: 18px, Header: 16px, Sub-header: 14px, Box/Table Header: 13px, Body: 12px, Page Number: 10px), page numbers bottom-aligned, print-safe styles, no hover, no overflow.`;
+    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), fancy Google Fonts on headings, strict class-based font size hierarchy (Title: 28px, Subtitle: 21px, Section Title: 18px, Header: 16px, Sub-header: 14px, Box/Table Header: 13px, Body: 12px, Page Number: 10px), page numbers bottom-aligned, print-safe styles, no hover, no overflow. Pack content efficiently to minimize page count.`;
 
     let htmlDraft = await generateContentWithRotation(htmlPrompt, htmlSystemInstruction);
 
@@ -832,7 +847,7 @@ Checklist of violations you MUST correct if present:
 5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
 6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
 7. PAGE CONTAINERS & TEXT SHAPES: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Ensure all text-holding containers are standard squares, rectangles, or circles. Ensure any stylized/decorative borders or accents are placed at the outer page margins and do not overlap text. Do NOT strip out visual shapes, colors, or card structures.
-8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (28px), Subtitle (21px), Section Title (18px), Header (16px), Sub-header (14px), Table Header / Box Header (13px), Body / Rows (12px), and Page Numbers (10px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element.
+8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (28px), Subtitle (21px), Section Title (18px), Header (16px), Sub-header (14px), Table Header / Box Header (13px), Body / Rows (12px), and Page Numbers (10px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element. Avoid unnecessary page inflation and pack elements densely.
 
 Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
 `;

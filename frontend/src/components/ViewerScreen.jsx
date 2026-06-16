@@ -107,11 +107,11 @@ const ViewerScreen = ({
           overflow: visible !important;
         }
 
-        /* Prevent self-contained layout blocks from breaking mid-element (avoid table, list, aside containers) */
+        /* Prevent self-contained layout blocks from breaking mid-element (avoid table, list, aside containers) as a suggestion */
         .card, .callout-box, .stat-card, .notes-card, .step-card,
         .page tr, .page li, .page blockquote, .page figure {
-          break-inside: avoid !important;
-          page-break-inside: avoid !important;
+          break-inside: avoid;
+          page-break-inside: avoid;
         }
 
         /* Enforce narrow page boundaries and margins */
