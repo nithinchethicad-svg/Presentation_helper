@@ -720,8 +720,8 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const vibeThemeRules = {
       'Warm & Encouraging': `
         TYPOGRAPHY: Use Google Fonts "Nunito" (rounded, friendly) for headings and "Lato" for body. H1: oversized (2.5em+), bold, warm-toned. H2: 1.4em, semi-bold. Body text: 1em, generous line-height 1.7.
-        SHAPES & CONTAINERS: Use soft rounded rectangles (border-radius: 20-30px) for content cards. Add organic wave SVG dividers between sections. Use gentle pastel fills (peach, lavender, soft orange) for callout boxes.
-        INFOGRAPHICS: Break key points into "Encouragement Cards" with a large emoji/icon and short motivational statement. Use side-by-side two-column layouts for tips. Add "Remember This!" callout bubbles with a speech-bubble shape using CSS clip-path or border tricks.
+        SHAPES & CONTAINERS: Use soft rounded rectangles (border-radius: 20-30px) for content cards. Add organic wave SVG dividers between sections at the page margins. Use gentle pastel fills (peach, lavender, soft orange) for callout boxes (must be standard rectangles).
+        INFOGRAPHICS: Break key points into "Encouragement Cards" (rounded rectangles) with a large emoji/icon and short motivational statement. Use side-by-side two-column layouts for tips. Add "Remember This!" callout boxes (standard rounded rectangles only, no speech-bubble clip-paths).
         COLOR PALETTE: Warm amber (#f97316), soft peach (#fed7aa), light cream (#fffbeb), with dark chocolate (#1c1917) for text.
       `,
       'Formal & Professional': `
@@ -732,26 +732,26 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       `,
       'Fun & Energetic': `
         TYPOGRAPHY: Use Google Fonts "Poppins" (bold) for H1 and "Comic Neue" or "Fredoka One" for subheadings. H1: massive, 3em+, heavy weight, rotated slightly or with an underline squiggle. H2: 1.5em, bold, colourful.
-        SHAPES & CONTAINERS: Use asymmetrical card shapes with heavy drop-shadows (box-shadow: 8px 8px 0px #000). Add squiggly or wavy borders using SVG. Use triangular accent shapes in corners. Mix background colours per section (never plain white).
-        INFOGRAPHICS: Use large "Stat Badges" (big number + descriptor). Add "Did You Know?" callout boxes with a starburst or explosion shape. Use icon-heavy bullet points. Add confetti or star decorative elements.
+        SHAPES & CONTAINERS: Use standard rectangle cards with border-radius and heavy solid drop-shadows (box-shadow: 8px 8px 0px #000) for holding text. Do NOT use asymmetrical clip-paths for text cards. Add squiggly or wavy borders using SVG and triangular accent shapes only at the page margins. Mix background colours per section (never plain white).
+        INFOGRAPHICS: Use large "Stat Badges" (circles or squares). Add "Did You Know?" callout boxes (rectangles/squares). Use icon-heavy bullet points. Add confetti or star decorative elements only at the margins.
         COLOR PALETTE: Hot pink (#ec4899), electric yellow (#facc15), deep purple (#7c3aed), bright teal (#06b6d4) on a near-white or light grey base.
       `,
       'Reflective & Thoughtful': `
         TYPOGRAPHY: Use Google Fonts "Playfair Display" (elegant serif) for H1 headings and "Source Serif 4" or "Georgia" for body. H1: 2.2em, italic, generous margins. H2: 1.2em, small-caps. Body: 1em, wide line-height 1.8, ample paragraph spacing.
-        SHAPES & CONTAINERS: Minimalist fine-line borders (1px solid #d1d5db). Extra-wide padding (30-40px) inside content blocks. Ample negative/blank space between sections. No heavy backgrounds — white or very light grey only.
-        INFOGRAPHICS: Use pull-quote blocks (large left-border accent line + italic quote text). Add "Pause & Reflect" prompts in bordered aside boxes. Use sparse, refined iconography. Avoid heavy infographic elements.
+        SHAPES & CONTAINERS: Minimalist fine-line borders (1px solid #d1d5db) on rectangular cards. Extra-wide padding (30-40px) inside content blocks. Ample negative/blank space between sections. No heavy backgrounds — white or very light grey only.
+        INFOGRAPHICS: Use pull-quote blocks (standard rectangles with a large left-border accent line + italic quote text). Add "Pause & Reflect" prompts in bordered aside boxes (standard rectangles). Use sparse, refined iconography. Avoid heavy infographic elements.
         COLOR PALETTE: Soft sage (#d1fae5), warm off-white (#fafaf9), medium grey (#6b7280), and one contemplative accent like forest green (#059669) or dusty blue (#7c9eb2).
       `,
       'Educational & Informative': `
         TYPOGRAPHY: Use Google Fonts "Roboto" for body text and "Roboto Slab" or "DM Sans" for headings. H1: bold 2em with a coloured underline. H2: 1.3em with a numbered prefix badge. Body: 0.95em, clear 1.6 line-height.
-        SHAPES & CONTAINERS: Use connected flowchart-style containers for sequential content (use CSS border + pseudo-element arrows). Use grid blocks with labelled headers for each content area. Use process arrows (→) between steps. Add "Key Term" definition boxes with a left-coloured border.
-        INFOGRAPHICS: Use side-by-side comparison tables. Add process flow diagrams (Step 1 → Step 2 → Step 3) using CSS flexbox boxes with connector arrows. Include "Key Concept" and "Example" callout boxes with distinct background colours.
+        SHAPES & CONTAINERS: Use flowchart-style standard rectangular containers for sequential content. Use standard grid blocks (rectangles/squares) with labelled headers for each content area. Use process arrows (→) between steps. Add "Key Term" definition boxes (rectangles/squares) with a left-coloured border.
+        INFOGRAPHICS: Use side-by-side comparison tables. Add process flow diagrams (Step 1 → Step 2 → Step 3) using CSS flexbox boxes (rectangles) with connector arrows at the margins. Include "Key Concept" and "Example" callout boxes (rectangles) with distinct background colours.
         COLOR PALETTE: Academic blue (#2563eb), knowledge gold (#f59e0b), white (#ffffff), with light blue section backgrounds (#eff6ff).
       `,
       'Motivational & Inspiring': `
         TYPOGRAPHY: Use Google Fonts "Montserrat" (tall, bold) for H1 — extreme weight (900), all-caps, with a gradient or coloured fill. Use "Open Sans" for body. H1: 2.8em+, all-caps. H2: 1.4em, bold, coloured. Body: 1em, 1.6 line-height.
-        SHAPES & CONTAINERS: Use forward-slashing diagonal panel dividers (CSS clip-path: polygon) between sections. Add upward-pointing chevron shapes above key sections. Use milestone timeline flags for sequential content. Backgrounds should have bold gradient fills per section.
-        INFOGRAPHICS: Use large "Hero Numbers" (giant stat + descriptor) to highlight key metrics. Add milestone banners ("Goal 1", "Goal 2") in a horizontal ribbon layout. Use upward arrow motifs (▲) for progress. Bold "Call to Action" buttons or boxes at the end of each page.
+        SHAPES & CONTAINERS: Use forward-slashing diagonal lines (clip-path: polygon) and chevron/arrow accent shapes ONLY as decorative designs at the page margins. All content and text panels must be standard rectangles or squares. Backgrounds should have bold gradient fills per section.
+        INFOGRAPHICS: Use large "Hero Numbers" (giant stat circles or squares + descriptor text). Add milestone banners ("Goal 1", "Goal 2") in a horizontal ribbon layout (rectangles). Use upward arrow motifs (▲) at the margins. Bold "Call to Action" boxes (rectangles) at the end of each page.
         COLOR PALETTE: Deep purple (#7c3aed), electric indigo (#4f46e5), vibrant gold (#fbbf24), and white on bold dark backgrounds.
       `
     };
@@ -793,6 +793,7 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       "You are an expert content designer and summary publisher. " +
       "Create standalone HTML/CSS notes strictly following the blueprint. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
       "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
+      "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
       "CRITICAL LAYOUT: You must wrap each page defined in the blueprint in a separate <div class=\"page\">...</div> container. The output must consist of multiple .page containers, one for each page in the blueprint. Do NOT merge them into a single container. " +
       "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers take second priority). Do NOT invent new headers, rename slides, or merge unrelated topics under new titles. " +
       (bStrictFileContentOnly
@@ -820,7 +821,7 @@ Checklist of violations you MUST correct if present:
 4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
 5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
 6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
-7. PAGE CONTAINERS: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Do NOT strip out visual shapes, colors, or card structures.
+7. PAGE CONTAINERS & TEXT SHAPES: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Ensure all text-holding containers are standard squares, rectangles, or circles. Ensure any stylized/decorative borders or accents are placed at the outer page margins and do not overlap text. Do NOT strip out visual shapes, colors, or card structures.
 
 Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
 `;
