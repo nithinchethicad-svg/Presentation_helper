@@ -1,0 +1,8 @@
+Copyright (c) 2026 Nithin Abraham Chethicad. All rights reserved.
+
+Commercial and non-commercial use, modification, distribution, or 
+reproduction of this source code or any compiled binaries, in whole 
+or in part, is strictly prohibited without prior written permission 
+from the copyright holder.
+
+The software is provided "as is", without warranty of any kind.
