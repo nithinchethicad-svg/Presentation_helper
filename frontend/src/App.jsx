@@ -25,12 +25,12 @@ const BACKEND_URL = 'http://localhost:5000';
 
 // Human-readable loading stages shown in the progress bar
 const LOADING_STAGES = [
-  { step: 1, pct: 8,  icon: '📂', title: 'Opening your files',          desc: 'Reading through your uploaded documents and slides.' },
-  { step: 2, pct: 25, icon: '🔍', title: 'Understanding the content',   desc: 'Identifying key topics, sections, and important points.' },
-  { step: 3, pct: 48, icon: '🎨', title: 'Designing the layout',        desc: 'Choosing the right structure, colours, and visual style for your document.' },
-  { step: 4, pct: 68, icon: '✍️', title: 'Writing your takeaway notes', desc: 'Crafting clear, well-organised summaries for each section.' },
-  { step: 5, pct: 85, icon: '🖨️', title: 'Making it print-ready',       desc: 'Checking the document is clean, properly formatted, and ready to download.' },
-  { step: 6, pct: 96, icon: '✅', title: 'Almost done!',                 desc: 'Doing a final quality check before showing you the result.' },
+  { step: 1, pct: 8,  icon: '📂', title: 'Opening your files',          desc: 'Reading your documents. Note: AI generation is a lengthy process and can take 5+ minutes. Please wait patiently.' },
+  { step: 2, pct: 25, icon: '🔍', title: 'Understanding the content',   desc: 'Identifying key topics, sections, and important points. Grab a coffee, this takes a few minutes.' },
+  { step: 3, pct: 48, icon: '🎨', title: 'Designing the layout',        desc: 'Structuring the blueprint and visual style. Still working hard in the background!' },
+  { step: 4, pct: 68, icon: '✍️', title: 'Writing your takeaway notes', desc: 'Crafting comprehensive summaries for each section. This is the most time-consuming step.' },
+  { step: 5, pct: 85, icon: '🖨️', title: 'Making it print-ready',       desc: 'Applying typography, colors, and formatting. Almost there...' },
+  { step: 6, pct: 96, icon: '✅', title: 'Finalising document!',         desc: 'Doing a final quality check and rendering your layout. Just a few moments left.' },
 ];
 
 function App() {
@@ -54,8 +54,8 @@ function App() {
     }
     setLoadingStage(LOADING_STAGES[0]);
     let idx = 1;
-    // Spread stages across ~55 seconds (typical AI generation time)
-    const delays = [6000, 12000, 10000, 10000, 9000]; // ms between stage advances
+    // Spread stages across ~5 minutes to be more realistic/pessimistic
+    const delays = [15000, 45000, 60000, 100000, 60000]; // ms between stage advances
     const timers = [];
     let elapsed = 0;
     delays.forEach((delay, i) => {

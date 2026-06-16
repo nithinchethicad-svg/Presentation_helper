@@ -130,13 +130,13 @@ const ViewerScreen = ({
         }
 
         /* FONT SIZE HIERARCHY */
-        .page .title { font-size: 28px !important; font-weight: 800 !important; }
-        .page .subtitle { font-size: 21px !important; font-weight: 600 !important; }
-        .page .section-title { font-size: 18px !important; font-weight: 700 !important; }
-        .page h1, .page .header { font-size: 16px !important; font-weight: 700 !important; }
-        .page h2, .page .sub-header { font-size: 14px !important; font-weight: 600 !important; }
-        .page th, .page .box-header, .page .card-title { font-size: 13px !important; font-weight: 700 !important; }
-        .page td, .page p, .page li, .page .body-text { font-size: 12px !important; font-weight: 400 !important; line-height: 1.5 !important; }
+        .page .title { font-size: 40px !important; font-weight: 800 !important; }
+        .page .subtitle { font-size: 32px !important; font-weight: 600 !important; }
+        .page .section-title { font-size: 28px !important; font-weight: 700 !important; }
+        .page h1, .page .header { font-size: 24px !important; font-weight: 700 !important; }
+        .page h2, .page .sub-header { font-size: 20px !important; font-weight: 600 !important; }
+        .page h3, .page th, .page .box-header, .page .card-title { font-size: 16px !important; font-weight: 700 !important; }
+        .page td, .page p, .page li, .page .body-text { font-size: 14px !important; font-weight: 400 !important; line-height: 1.6 !important; }
 
         /* POSITION PAGE NUMBERS AT BOTTOM */
         .page { position: relative !important; }
@@ -173,6 +173,47 @@ const ViewerScreen = ({
           box-shadow: inherit !important;
           opacity: inherit !important;
           text-decoration: inherit !important;
+        }
+
+        /* PRINT OVERRIDES */
+        @media print {
+          @page {
+            margin: 0 !important;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          .page {
+            position: relative !important;
+            overflow: hidden !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            min-height: 297mm !important;
+            height: 297mm !important;
+            width: 210mm !important;
+            padding: 12mm !important; /* Narrow margins */
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+          }
+          h1, h2, h3, h4, h5, h6, p, li, td, th, span, div, pre, code, table, blockquote, figure, aside, section, article {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          .page div, .page section, .page article {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* Restrict print breaks to specific blocks */
+          .card, .callout-box, .stat-card, .notes-card, .step-card,
+          .page tr, .page li, .page blockquote, .page figure {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
         }
       `;
       doc.head.appendChild(style);
