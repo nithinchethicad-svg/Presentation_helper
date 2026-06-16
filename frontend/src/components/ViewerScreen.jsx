@@ -94,10 +94,8 @@ const ViewerScreen = ({
           word-wrap: break-word !important;
         }
 
-        /* Hard cap on font sizes — prevents oversized AI-generated titles bleeding out */
-        h1 { font-size: min(2.8em, 9vw) !important; line-height: 1.2 !important; }
-        h2 { font-size: min(1.8em, 6vw) !important; line-height: 1.3 !important; }
-        h3 { font-size: min(1.3em, 5vw) !important; line-height: 1.35 !important; }
+        /* Standard heading line-heights */
+        h1, h2, h3, h4, h5, h6 { line-height: 1.35 !important; }
 
         /* ── SHAPE CONTAINMENT ──────────────────────────────────────────────
            Shape containers must grow with their text content.
@@ -131,14 +129,25 @@ const ViewerScreen = ({
           box-sizing: border-box !important;
         }
 
-        /* Minimum readable font size inside shapes (9pt ≈ 12px) */
-        .page div *, .page section *, .page article * {
-          font-size: max(0.8em, 12px);
+        /* FONT SIZE HIERARCHY */
+        .page .title { font-size: 28px !important; font-weight: 800 !important; }
+        .page .subtitle { font-size: 21px !important; font-weight: 600 !important; }
+        .page .section-title { font-size: 18px !important; font-weight: 700 !important; }
+        .page h1, .page .header { font-size: 16px !important; font-weight: 700 !important; }
+        .page h2, .page .sub-header { font-size: 14px !important; font-weight: 600 !important; }
+        .page th, .page .box-header, .page .card-title { font-size: 13px !important; font-weight: 700 !important; }
+        .page td, .page p, .page li, .page .body-text { font-size: 12px !important; font-weight: 400 !important; line-height: 1.5 !important; }
+
+        /* POSITION PAGE NUMBERS AT BOTTOM */
+        .page { position: relative !important; }
+        .page .page-number, .page .footer {
+          position: absolute !important;
+          bottom: 12mm !important;
+          right: 12mm !important;
+          font-size: 10px !important;
+          font-weight: 500 !important;
+          opacity: 0.8 !important;
         }
-        /* Re-allow heading sizes */
-        .page h1 { font-size: min(2.8em, 9vw) !important; }
-        .page h2 { font-size: min(1.8em, 6vw) !important; }
-        .page h3 { font-size: min(1.3em, 5vw) !important; }
 
         /* Ensure text never touches the edge of a shaped container */
         .page div[style*="border-radius"],

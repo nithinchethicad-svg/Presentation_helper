@@ -792,6 +792,16 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const htmlSystemInstruction = 
       "You are an expert content designer and summary publisher. " +
       "Create standalone HTML/CSS notes strictly following the blueprint. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
+      "CRITICAL TYPOGRAPHY & HIERARCHY: You must import any required Google Fonts in the HTML <head> using <link rel=\"stylesheet\" href=\"...\">. Proactively apply the theme's fancy/decorative Google Fonts to all main titles, sub-titles, section titles, headers, and sub-headers (H1, H2, H3, H4, etc.) to make them look visually striking, premium, and themed. Keep body text highly readable (e.g. using Lato, Inter, or Open Sans). Do NOT use generic system fonts for headings. " +
+      "Ensure you strictly enforce the following class-based font size hierarchy in your CSS and HTML: " +
+      "1. Main Title (.title): 28px, extra-bold (use for document title/cover page). " +
+      "2. Subtitles (.subtitle): 21px, semi-bold. " +
+      "3. Section Titles (.section-title): 18px, bold. " +
+      "4. Headers (h1, .header): 16px, bold (use for page/slide headings). " +
+      "5. Sub-headers (h2, .sub-header): 14px, semi-bold. " +
+      "6. Table Header Row / Card Headers (th, .box-header, .card-title): 13px, bold. " +
+      "7. Body / Rows (td, p, li, .body-text): 12px, regular. " +
+      "8. Page Numbers (.page-number): 10px, medium (placed at the bottom right of each page: <div class=\"page-number\">Page X of Y</div>). " +
       "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
       "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
       "CRITICAL LAYOUT: You must wrap each page defined in the blueprint in a separate <div class=\"page\">...</div> container. The output must consist of multiple .page containers, one for each page in the blueprint. Do NOT merge them into a single container. " +
@@ -800,7 +810,7 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), print-safe styles, no hover, no overflow.`;
+    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), fancy Google Fonts on headings, strict class-based font size hierarchy (Title: 28px, Subtitle: 21px, Section Title: 18px, Header: 16px, Sub-header: 14px, Box/Table Header: 13px, Body: 12px, Page Number: 10px), page numbers bottom-aligned, print-safe styles, no hover, no overflow.`;
 
     let htmlDraft = await generateContentWithRotation(htmlPrompt, htmlSystemInstruction);
 
@@ -818,10 +828,11 @@ Checklist of violations you MUST correct if present:
 1. FIXED HEIGHTS: Any container inside a page (like .card, .callout, .badge, .container, .sidebar, div) that has a fixed "height: Xpx" or "height: Xrem". You MUST convert it to "min-height: Xpx; height: auto" so the shape expands with text.
 2. TEXT OVERFLOW: Any heading, paragraph, list item, span, pre, code, or table that does not have "word-break: break-word; overflow-wrap: break-word;". Ensure these are added to prevent text bleeding out of the A4 page.
 3. HOVER / TRANSITIONS: If you see any ":hover" pseudo-class, transition property, animation, cursor: pointer, transform-on-hover, or absolute fixed/sticky positions, you MUST remove them.
-4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
+4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents or page numbers. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
 5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
 6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
 7. PAGE CONTAINERS & TEXT SHAPES: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Ensure all text-holding containers are standard squares, rectangles, or circles. Ensure any stylized/decorative borders or accents are placed at the outer page margins and do not overlap text. Do NOT strip out visual shapes, colors, or card structures.
+8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (28px), Subtitle (21px), Section Title (18px), Header (16px), Sub-header (14px), Table Header / Box Header (13px), Body / Rows (12px), and Page Numbers (10px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element.
 
 Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
 `;
