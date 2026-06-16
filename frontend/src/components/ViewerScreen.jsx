@@ -37,6 +37,14 @@ const ViewerScreen = ({
             box-sizing: border-box !important;
           }
 
+          /* Visual page breaks on screen */
+          .page {
+            margin: 0 auto 24px auto !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+            border-radius: 4px !important;
+            background-color: white !important;
+          }
+
           /* Enforce responsive scaling on mobile screen viewports */
           @media (max-width: 840px) {
             .page {
@@ -64,13 +72,26 @@ const ViewerScreen = ({
           overflow: hidden !important;
         }
 
-        /* Prevent large headings from exceeding page width */
+        /* Prevent large headings and elements from exceeding page width */
         h1, h2, h3, h4, h5, h6,
-        p, li, td, th, span, div {
+        p, li, td, th, span, div, pre, code, table, blockquote, figure, aside, section, article {
           word-break: break-word !important;
           overflow-wrap: break-word !important;
           hyphens: auto !important;
           max-width: 100% !important;
+        }
+
+        /* Force tables to auto-wrap and stay within bounds */
+        table {
+          table-layout: fixed !important;
+          width: 100% !important;
+          border-collapse: collapse !important;
+        }
+
+        /* Force code blocks to wrap */
+        pre, code {
+          white-space: pre-wrap !important;
+          word-wrap: break-word !important;
         }
 
         /* Hard cap on font sizes — prevents oversized AI-generated titles bleeding out */
@@ -86,19 +107,28 @@ const ViewerScreen = ({
           height: auto !important;
           min-height: 0 !important;
           overflow: visible !important;
+        }
+
+        /* Prevent self-contained layout blocks from breaking mid-element (avoid table, list, aside containers) */
+        .card, .callout-box, .stat-card, .notes-card, .step-card,
+        .page tr, .page li, .page blockquote, .page figure {
           break-inside: avoid !important;
           page-break-inside: avoid !important;
         }
 
-        /* Prevent tables and table rows from splitting mid-element */
-        .page table { break-inside: avoid !important; page-break-inside: avoid !important; }
-        .page tr     { break-inside: avoid !important; page-break-inside: avoid !important; }
-
-        /* Re-clip the page itself so nothing bleeds past the A4 boundary */
+        /* Enforce narrow page boundaries and margins */
         .page {
           overflow: hidden !important;
           min-height: 297mm !important;
-          /* Do NOT force height: auto here (causes page bleed in print) */
+          width: 210mm !important;
+          padding: 12mm !important; /* Narrow margins */
+          box-sizing: border-box !important;
+        }
+
+        /* Prevent inner content from exceeding printable width */
+        .page > * {
+          max-width: 100% !important;
+          box-sizing: border-box !important;
         }
 
         /* Minimum readable font size inside shapes (9pt ≈ 12px) */

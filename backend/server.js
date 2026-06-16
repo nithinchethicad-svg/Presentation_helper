@@ -287,7 +287,18 @@ function stripPrintUnfriendlyStyles(html) {
   * { transition: none !important; animation: none !important; cursor: default !important; }
 
   /* TEXT BLEED PREVENTION */
-  h1, h2, h3, h4, h5, h6, p, li, td, th, span, div {
+  * {
+    box-sizing: border-box !important;
+  }
+  html, body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .page {
+    max-width: 100% !important;
+  }
+  /* Ensure all layout and content elements respect boundaries */
+  h1, h2, h3, h4, h5, h6, p, li, td, th, span, div, pre, code, table, blockquote, figure, aside, section, article {
     word-break: break-word !important;
     overflow-wrap: break-word !important;
     hyphens: auto !important;
@@ -297,10 +308,32 @@ function stripPrintUnfriendlyStyles(html) {
   h2 { font-size: min(1.8em, 36pt) !important; line-height: 1.3 !important; }
   h3 { font-size: min(1.3em, 26pt) !important; line-height: 1.35 !important; }
 
+  /* Force tables to auto-wrap and stay within bounds */
+  table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  /* Force code blocks to wrap */
+  pre, code {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+  }
+
   /* PAGE BOUNDARY — do NOT set height:auto on .page (causes page-bleed) */
   .page {
     overflow: hidden !important;
     min-height: 297mm !important;
+    width: 210mm !important;
+    padding: 12mm !important; /* Narrow margins */
+    box-sizing: border-box !important;
+  }
+
+  /* Prevent inner content from exceeding printable width */
+  .page > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   /* SHAPE CONTAINMENT — inner containers grow but .page clips at its boundary */
@@ -309,13 +342,14 @@ function stripPrintUnfriendlyStyles(html) {
     min-height: 0 !important;
     height: auto !important;
     overflow: visible !important;
+  }
+
+  /* Prevent self-contained layout blocks from breaking mid-element (avoid table, list, aside containers) */
+  .card, .callout-box, .stat-card, .notes-card, .step-card,
+  .page tr, .page li, .page blockquote, .page figure {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
-
-  /* Tables must not split mid-row */
-  .page table { break-inside: avoid !important; page-break-inside: avoid !important; }
-  .page tr     { break-inside: avoid !important; page-break-inside: avoid !important; }
 
   /* Minimum readable font size (9pt = 12px for print) */
   .page div *, .page section *, .page article * { font-size: max(0.8em, 12px); }
@@ -334,6 +368,16 @@ function stripPrintUnfriendlyStyles(html) {
     overflow-wrap: break-word !important;
   }
 
+  /* SCREEN-ONLY STYLING — Separate pages visually like a real PDF document */
+  @media screen {
+    .page {
+      margin: 0 auto 24px auto !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+      border-radius: 4px !important;
+      background-color: white !important;
+    }
+  }
+
   /* PRINT OVERRIDES */
   @media print {
     * { position: static !important; float: none !important; }
@@ -344,15 +388,25 @@ function stripPrintUnfriendlyStyles(html) {
       break-after: page;
       min-height: 297mm !important;
       height: 297mm !important;
+      width: 210mm !important;
+      padding: 12mm !important; /* Narrow margins */
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
     }
     body { background: white !important; }
-    h1, h2, h3, h4, h5, h6, p, li, td, th, span, div {
+    h1, h2, h3, h4, h5, h6, p, li, td, th, span, div, pre, code, table, blockquote, figure, aside, section, article {
       word-break: break-word !important;
       overflow-wrap: break-word !important;
     }
     .page div, .page section, .page article {
       height: auto !important;
       overflow: visible !important;
+    }
+    /* Restrict print breaks to specific blocks */
+    .card, .callout-box, .stat-card, .notes-card, .step-card,
+    .page tr, .page li, .page blockquote, .page figure {
       break-inside: avoid !important;
       page-break-inside: avoid !important;
     }
@@ -664,12 +718,42 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const detailInstruction = detailInstructions[detailLevel] || detailInstructions['Moderate'];
 
     const vibeThemeRules = {
-      'Warm & Encouraging': 'Use Google Fonts "Nunito" (rounded) and "Lato". Soft rounded rectangles (border-radius: 20-30px). Warm amber, peach, cream.',
-      'Formal & Professional': 'Use Google Fonts "Inter". Sharp-edged rectangles (border-radius: 4px). Slate, grey, white.',
-      'Fun & Energetic': 'Use Google Fonts "Poppins". Asymmetrical card shapes, heavy drop-shadows. Hot pink, electric yellow, deep purple.',
-      'Reflective & Thoughtful': 'Use Google Fonts "Playfair Display" and "Source Serif 4". Minimalist fine-line borders. Sage, off-white, forest green.',
-      'Educational & Informative': 'Use Google Fonts "Roboto" and "Roboto Slab". Flowchart-style containers, grid blocks. Academic blue, gold, white.',
-      'Motivational & Inspiring': 'Use Google Fonts "Montserrat". Forward-slashing diagonal dividers. Deep purple, indigo, vibrant gold.'
+      'Warm & Encouraging': `
+        TYPOGRAPHY: Use Google Fonts "Nunito" (rounded, friendly) for headings and "Lato" for body. H1: oversized (2.5em+), bold, warm-toned. H2: 1.4em, semi-bold. Body text: 1em, generous line-height 1.7.
+        SHAPES & CONTAINERS: Use soft rounded rectangles (border-radius: 20-30px) for content cards. Add organic wave SVG dividers between sections. Use gentle pastel fills (peach, lavender, soft orange) for callout boxes.
+        INFOGRAPHICS: Break key points into "Encouragement Cards" with a large emoji/icon and short motivational statement. Use side-by-side two-column layouts for tips. Add "Remember This!" callout bubbles with a speech-bubble shape using CSS clip-path or border tricks.
+        COLOR PALETTE: Warm amber (#f97316), soft peach (#fed7aa), light cream (#fffbeb), with dark chocolate (#1c1917) for text.
+      `,
+      'Formal & Professional': `
+        TYPOGRAPHY: Use Google Fonts "Inter" (crisp, geometric) for both headings and body. H1: bold 2em, all-caps with letter-spacing 0.08em. H2: 1.3em, medium weight, thin bottom border. Body: 0.95em, tight line-height 1.5.
+        SHAPES & CONTAINERS: Use sharp-edged rectangles (border-radius: 4px max) for all content blocks. Apply crisp thin 1px borders (#334155) on cards. Use a strict grid layout with clear column separators.
+        INFOGRAPHICS: Use structured data tables with alternating row shading. Add numbered list badges (e.g. "01.", "02.") for ordered points. Use thin horizontal rules to separate all sections.
+        COLOR PALETTE: Deep slate (#1e293b), cool grey (#64748b), white (#ffffff), and a single corporate accent (e.g. #2563eb or #0f172a).
+      `,
+      'Fun & Energetic': `
+        TYPOGRAPHY: Use Google Fonts "Poppins" (bold) for H1 and "Comic Neue" or "Fredoka One" for subheadings. H1: massive, 3em+, heavy weight, rotated slightly or with an underline squiggle. H2: 1.5em, bold, colourful.
+        SHAPES & CONTAINERS: Use asymmetrical card shapes with heavy drop-shadows (box-shadow: 8px 8px 0px #000). Add squiggly or wavy borders using SVG. Use triangular accent shapes in corners. Mix background colours per section (never plain white).
+        INFOGRAPHICS: Use large "Stat Badges" (big number + descriptor). Add "Did You Know?" callout boxes with a starburst or explosion shape. Use icon-heavy bullet points. Add confetti or star decorative elements.
+        COLOR PALETTE: Hot pink (#ec4899), electric yellow (#facc15), deep purple (#7c3aed), bright teal (#06b6d4) on a near-white or light grey base.
+      `,
+      'Reflective & Thoughtful': `
+        TYPOGRAPHY: Use Google Fonts "Playfair Display" (elegant serif) for H1 headings and "Source Serif 4" or "Georgia" for body. H1: 2.2em, italic, generous margins. H2: 1.2em, small-caps. Body: 1em, wide line-height 1.8, ample paragraph spacing.
+        SHAPES & CONTAINERS: Minimalist fine-line borders (1px solid #d1d5db). Extra-wide padding (30-40px) inside content blocks. Ample negative/blank space between sections. No heavy backgrounds — white or very light grey only.
+        INFOGRAPHICS: Use pull-quote blocks (large left-border accent line + italic quote text). Add "Pause & Reflect" prompts in bordered aside boxes. Use sparse, refined iconography. Avoid heavy infographic elements.
+        COLOR PALETTE: Soft sage (#d1fae5), warm off-white (#fafaf9), medium grey (#6b7280), and one contemplative accent like forest green (#059669) or dusty blue (#7c9eb2).
+      `,
+      'Educational & Informative': `
+        TYPOGRAPHY: Use Google Fonts "Roboto" for body text and "Roboto Slab" or "DM Sans" for headings. H1: bold 2em with a coloured underline. H2: 1.3em with a numbered prefix badge. Body: 0.95em, clear 1.6 line-height.
+        SHAPES & CONTAINERS: Use connected flowchart-style containers for sequential content (use CSS border + pseudo-element arrows). Use grid blocks with labelled headers for each content area. Use process arrows (→) between steps. Add "Key Term" definition boxes with a left-coloured border.
+        INFOGRAPHICS: Use side-by-side comparison tables. Add process flow diagrams (Step 1 → Step 2 → Step 3) using CSS flexbox boxes with connector arrows. Include "Key Concept" and "Example" callout boxes with distinct background colours.
+        COLOR PALETTE: Academic blue (#2563eb), knowledge gold (#f59e0b), white (#ffffff), with light blue section backgrounds (#eff6ff).
+      `,
+      'Motivational & Inspiring': `
+        TYPOGRAPHY: Use Google Fonts "Montserrat" (tall, bold) for H1 — extreme weight (900), all-caps, with a gradient or coloured fill. Use "Open Sans" for body. H1: 2.8em+, all-caps. H2: 1.4em, bold, coloured. Body: 1em, 1.6 line-height.
+        SHAPES & CONTAINERS: Use forward-slashing diagonal panel dividers (CSS clip-path: polygon) between sections. Add upward-pointing chevron shapes above key sections. Use milestone timeline flags for sequential content. Backgrounds should have bold gradient fills per section.
+        INFOGRAPHICS: Use large "Hero Numbers" (giant stat + descriptor) to highlight key metrics. Add milestone banners ("Goal 1", "Goal 2") in a horizontal ribbon layout. Use upward arrow motifs (▲) for progress. Bold "Call to Action" buttons or boxes at the end of each page.
+        COLOR PALETTE: Deep purple (#7c3aed), electric indigo (#4f46e5), vibrant gold (#fbbf24), and white on bold dark backgrounds.
+      `
     };
     const vibeInstruction = vibeThemeRules[writingTheme] || vibeThemeRules['Formal & Professional'];
 
@@ -706,20 +790,40 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     logEvent('info', 'Executing Stage 2: Drafting HTML summary...');
 
     const htmlSystemInstruction = 
+      "You are an expert content designer and summary publisher. " +
       "Create standalone HTML/CSS notes strictly following the blueprint. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
+      "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
+      "CRITICAL LAYOUT: You must wrap each page defined in the blueprint in a separate <div class=\"page\">...</div> container. The output must consist of multiple .page containers, one for each page in the blueprint. Do NOT merge them into a single container. " +
       "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers take second priority). Do NOT invent new headers, rename slides, or merge unrelated topics under new titles. " +
       (bStrictFileContentOnly
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: A4 container (.page), print-safe styles, no hover, no overflow.`;
+    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), print-safe styles, no hover, no overflow.`;
 
     let htmlDraft = await generateContentWithRotation(htmlPrompt, htmlSystemInstruction);
 
     // ── STAGE 3: HTML Validation Prompts ───────────────────────────────────
     logEvent('info', 'Executing Stage 3: Running HTML validation...');
     const validatorSystemInstruction = "Fix all overflow, print-safety (no hover/transitions), and CSS containment violations. Return ONLY corrected HTML.";
-    const validatorPrompt = `Inspect for violations: fixed heights, overflow, hover/transitions, absolute overlap. Fix and return cleaned code.\n\n${cleanHtmlResponse(htmlDraft)}`;
+    const validatorPrompt = `
+Task: Inspect the generated HTML/CSS code below for any formatting, overflow, page-bleeding, or print-safety violations, and output a corrected, fully safe version.
+
+--- HTML/CSS Code to Inspect ---
+${cleanHtmlResponse(htmlDraft)}
+--------------------------------
+
+Checklist of violations you MUST correct if present:
+1. FIXED HEIGHTS: Any container inside a page (like .card, .callout, .badge, .container, .sidebar, div) that has a fixed "height: Xpx" or "height: Xrem". You MUST convert it to "min-height: Xpx; height: auto" so the shape expands with text.
+2. TEXT OVERFLOW: Any heading, paragraph, list item, span, pre, code, or table that does not have "word-break: break-word; overflow-wrap: break-word;". Ensure these are added to prevent text bleeding out of the A4 page.
+3. HOVER / TRANSITIONS: If you see any ":hover" pseudo-class, transition property, animation, cursor: pointer, transform-on-hover, or absolute fixed/sticky positions, you MUST remove them.
+4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
+5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
+6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
+7. PAGE CONTAINERS: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Do NOT strip out visual shapes, colors, or card structures.
+
+Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
+`;
     let htmlValidated = await generateContentWithRotation(validatorPrompt, validatorSystemInstruction);
 
     res.json({ html: stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated)) });
