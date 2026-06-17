@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 const ViewerScreen = ({
   htmlContent,
@@ -223,17 +223,17 @@ const ViewerScreen = ({
         const sheets = doc.styleSheets;
         for (let i = 0; i < sheets.length; i++) {
           let rules;
-          try { rules = sheets[i].cssRules || sheets[i].rules; } catch(e) { continue; }
+          try { rules = sheets[i].cssRules || sheets[i].rules; } catch { continue; }
           if (!rules) continue;
           for (let j = rules.length - 1; j >= 0; j--) {
             const rule = rules[j];
             if (rule.selectorText && rule.selectorText.indexOf(':hover') !== -1) {
-              try { sheets[i].deleteRule(j); } catch(e) {}
+              try { sheets[i].deleteRule(j); } catch { /* ignore */ }
             } else if (rule.cssRules) {
               for (let k = rule.cssRules.length - 1; k >= 0; k--) {
                 const inner = rule.cssRules[k];
                 if (inner.selectorText && inner.selectorText.indexOf(':hover') !== -1) {
-                  try { rule.deleteRule(k); } catch(e) {}
+                  try { rule.deleteRule(k); } catch { /* ignore */ }
                 }
               }
             }
@@ -294,13 +294,14 @@ const ViewerScreen = ({
         
         {/* Top: Branding & Title Block */}
         <div className="viewer-left-top">
-          <header className="app-header" style={{ marginBottom: '0.75rem' }}>
-            <div className="logo-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM17 17H7V15H17V17ZM17 13H7V11H17V13ZM17 9H7V7H17V9Z" fill="currentColor"/>
-              </svg>
+          <header className="app-header" style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={onBack}>
+              <img 
+                src="/takeaway_notes_generator_logo.png" 
+                alt="AI Takeaway Notes Generator" 
+                style={{ height: '52px', objectFit: 'contain' }} 
+              />
             </div>
-            <span className="logo-text">Takeaway Notes</span>
           </header>
 
           <div style={{ marginBottom: '0.25rem' }}>

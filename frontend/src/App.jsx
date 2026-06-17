@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import HomeScreen from './components/HomeScreen';
+import SpeakerNotesScreen from './components/SpeakerNotesScreen';
+import SlidesComingSoon from './components/SlidesComingSoon';
 import UploadScreen from './components/UploadScreen';
 import QuestionnaireScreen from './components/QuestionnaireScreen';
 import ViewerScreen from './components/ViewerScreen';
@@ -34,7 +37,8 @@ const LOADING_STAGES = [
 ];
 
 function App() {
-  const [view, setView] = useState('upload'); // 'upload' | 'questionnaire' | 'viewer'
+  const [view, setView] = useState('home'); // Synced with URL hash
+  
   const [speakerNotes, setSpeakerNotes] = useState(null);
   const [presentationSlides, setPresentationSlides] = useState(null);
   
@@ -46,9 +50,36 @@ function App() {
   const [isRevising, setIsRevising] = useState(false);
   const [error, setError] = useState(null); // { title: '', desc: '' }
 
+  // Sync view state with URL hash (enables native back/forward buttons)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '') || 'home';
+      setView(hash);
+      setError(null);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    // Initialize view based on initial hash
+    handleHashChange();
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
+
+  // Navigation Helpers using browser history
+  const navigateTo = (newView) => {
+    window.location.hash = '/' + newView;
+  };
+
+  const navigateBack = () => {
+    window.history.back();
+  };
+
   // Advance through loading stages while isLoading is true
   useEffect(() => {
     if (!isLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingStage(null);
       return;
     }
@@ -58,7 +89,7 @@ function App() {
     const delays = [15000, 45000, 60000, 100000, 60000]; // ms between stage advances
     const timers = [];
     let elapsed = 0;
-    delays.forEach((delay, i) => {
+    delays.forEach((delay) => {
       elapsed += delay;
       const t = setTimeout(() => {
         if (idx < LOADING_STAGES.length) {
@@ -71,9 +102,10 @@ function App() {
     return () => timers.forEach(clearTimeout);
   }, [isLoading]);
 
-  // Exemption for Questionnaire Page Scroll
+  // Exemption for Page Scroll on non-editor screens
   useEffect(() => {
-    if (view === 'questionnaire') {
+    const scrollableViews = ['home', 'takeaway-upload', 'takeaway-questionnaire', 'slides-coming-soon'];
+    if (scrollableViews.includes(view)) {
       document.body.classList.add('allow-page-scroll');
       document.documentElement.classList.add('allow-page-scroll');
     } else {
@@ -86,23 +118,12 @@ function App() {
     };
   }, [view]);
 
-  // Navigate to Screen 2
-  const handleNext = () => {
-    setView('questionnaire');
-    setError(null);
+  // Navigate to Questionnaire from Upload
+  const handleUploadNext = () => {
+    navigateTo('takeaway-questionnaire');
   };
 
-  // Navigate back to Screen 1 from Screen 2, or Screen 2 from Screen 3
-  const handleBack = () => {
-    if (view === 'viewer') {
-      setView('questionnaire');
-    } else {
-      setView('upload');
-    }
-    setError(null);
-  };
-
-  // Clear all states and return to Screen 1
+  // Clear all states and return to HomeScreen
   const handleReset = () => {
     setSpeakerNotes(null);
     setPresentationSlides(null);
@@ -111,13 +132,21 @@ function App() {
     setIsLoading(false);
     setIsRevising(false);
     setError(null);
-    setView('upload');
+    navigateTo('home');
+  };
+
+  // Redirect from Speaker Notes to Takeaway Notes Questionnaire directly
+  const handleSendToTakeaways = (text) => {
+    const file = new File([text], 'Generated_Speaker_Notes.txt', { type: 'text/plain' });
+    setSpeakerNotes(file);
+    setPresentationSlides(null);
+    navigateTo('takeaway-questionnaire');
   };
 
   // Call the backend /api/generate endpoint
   const handleGenerate = async () => {
     setIsLoading(true);
-    setView('viewer'); // Transition to viewer immediately so it can show the skeleton loader
+    navigateTo('takeaway-viewer'); // Transition to viewer immediately so it can show the skeleton loader
     setError(null);
 
     const formData = new FormData();
@@ -164,7 +193,7 @@ function App() {
         title: err.title || 'Connection Failed',
         desc: err.desc || 'Could not connect to the backend server. Make sure your server is running on port 5000.'
       });
-      setView('questionnaire'); // Revert back to questionnaire screen if generation fails
+      navigateTo('takeaway-questionnaire'); // Revert back to questionnaire screen if generation fails
     } finally {
       setIsLoading(false);
     }
@@ -236,29 +265,47 @@ function App() {
 
       {/* Main Screens Navigation state machine */}
       <>
-        {view === 'upload' && (
+        {view === 'home' && (
+          <HomeScreen onNavigate={navigateTo} />
+        )}
+
+        {view === 'speaker-notes' && (
+          <SpeakerNotesScreen 
+            onBack={navigateBack} 
+            onSendToTakeaways={handleSendToTakeaways}
+            onNavigateToSlides={() => navigateTo('slides-coming-soon')}
+            BACKEND_URL={BACKEND_URL}
+          />
+        )}
+
+        {view === 'slides-coming-soon' && (
+          <SlidesComingSoon onBack={navigateBack} />
+        )}
+
+        {view === 'takeaway-upload' && (
           <UploadScreen
             speakerNotes={speakerNotes}
             setSpeakerNotes={setSpeakerNotes}
             presentationSlides={presentationSlides}
             setPresentationSlides={setPresentationSlides}
-            onNext={handleNext}
+            onNext={handleUploadNext}
+            onBack={() => navigateTo('home')}
           />
         )}
 
-        {view === 'questionnaire' && (
+        {view === 'takeaway-questionnaire' && (
           <QuestionnaireScreen
             preferences={preferences}
             setPreferences={setPreferences}
-            onBack={handleBack}
+            onBack={navigateBack}
             onGenerate={handleGenerate}
           />
         )}
 
-        {view === 'viewer' && (
+        {view === 'takeaway-viewer' && (
           <ViewerScreen
             htmlContent={generatedHtml}
-            onBack={handleBack}
+            onBack={navigateBack}
             onReset={handleReset}
             onRevise={handleRevise}
             isRevising={isRevising}

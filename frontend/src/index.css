@@ -1147,3 +1147,49 @@ body {
   }
 }
 
+/* AI Presentation Assistant custom styling */
+.home-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.home-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 20px 25px -5px rgb(99 102 241 / 0.08), 0 10px 10px -6px rgb(99 102 241 / 0.08) !important;
+  border-color: var(--primary) !important;
+}
+
+.home-card:nth-child(2):hover {
+  box-shadow: 0 20px 25px -5px rgb(245 158 11 / 0.08), 0 10px 10px -6px rgb(245 158 11 / 0.08) !important;
+  border-color: #f59e0b !important;
+}
+
+.home-card:nth-child(3):hover {
+  box-shadow: 0 20px 25px -5px rgb(16 185 129 / 0.08), 0 10px 10px -6px rgb(16 185 129 / 0.08) !important;
+  border-color: var(--success) !important;
+}
+
+/* Custom scrollbar for Chat history log */
+.chat-messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-messages-container::-webkit-scrollbar-thumb {
+  background-color: var(--border-light);
+  border-radius: 3px;
+}
+
+/* Ensure split container works on smaller screens */
+@media (max-width: 1024px) {
+  .workspace-split-container {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    min-height: unset !important;
+  }
+  .chat-panel {
+    height: 60vh !important;
+  }
+  .preview-panel {
+    height: 70vh !important;
+  }
+}
+
+

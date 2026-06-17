@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const UploadScreen = ({ 
   speakerNotes, 
   setSpeakerNotes, 
   presentationSlides, 
   setPresentationSlides, 
-  onNext 
+  onNext,
+  onBack
 }) => {
   const [dragOverSpeaker, setDragOverSpeaker] = useState(false);
   const [dragOverSlides, setDragOverSlides] = useState(false);
@@ -64,13 +65,23 @@ const UploadScreen = ({
   return (
     <div className="animate-fade-in">
       {/* Header Bar */}
-      <header className="app-header">
-        <div className="logo-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM17 17H7V15H17V17ZM17 13H7V11H17V13ZM17 9H7V7H17V9Z" fill="currentColor"/>
-          </svg>
+      <header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="btn-secondary"
+              style={{ padding: '0.5rem 0.85rem', borderRadius: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', border: '1px solid var(--border-light)', background: 'white', cursor: 'pointer' }}
+            >
+              ← Home
+            </button>
+          )}
+          <img 
+            src="/takeaway_notes_generator_logo.png" 
+            alt="AI Takeaway Notes Generator" 
+            style={{ height: '52px', objectFit: 'contain' }} 
+          />
         </div>
-        <span className="logo-text">Takeaway Notes</span>
       </header>
 
       {/* Error Message */}

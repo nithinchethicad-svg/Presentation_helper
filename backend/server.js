@@ -40,8 +40,85 @@ if (apiKeys.length === 0 && process.env.GEMINI_API_KEY) {
 // Current active key index
 let currentKeyIndex = 0;
 
-// Get the model name from environment or default to gemini-1.5-pro
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-1.5-pro';
+// Stores key verification status dynamically
+let keyStatuses = apiKeys.map((key, idx) => ({
+  index: idx + 1,
+  maskedKey: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : 'Not Set',
+  status: 'Not Checked',
+  model: '-',
+  error: null,
+  lastChecked: null
+}));
+
+// Extract status code from error object or message string
+const getErrorStatus = (error) => {
+  if (error.status) return error.status;
+  if (error.statusCode) return error.statusCode;
+  if (error.status_code) return error.status_code;
+  
+  const errMsg = error.message || '';
+  if (errMsg.startsWith('{') || errMsg.includes('"error"')) {
+    try {
+      const startIdx = errMsg.indexOf('{');
+      const endIdx = errMsg.lastIndexOf('}') + 1;
+      if (startIdx !== -1 && endIdx > startIdx) {
+        const jsonStr = errMsg.substring(startIdx, endIdx);
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.error && parsed.error.code) {
+          return Number(parsed.error.code);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  
+  if (errMsg.includes('401') || errMsg.includes('API_KEY_INVALID') || errMsg.includes('INVALID_API_KEY')) return 401;
+  if (errMsg.includes('403') || errMsg.includes('PERMISSION_DENIED')) return 403;
+  if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('ResourceExhausted')) return 429;
+  
+  return 500;
+};
+
+// Quota check helper function using GoogleGenAI
+async function verifyKeyQuota(apiKey) {
+  if (!apiKey) return { status: 'Not Configured', error: null };
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: "Hello, this is a connection check. Reply with 'OK'.",
+    });
+    return { status: 'Active (Success)', error: null };
+  } catch (err) {
+    const errMsg = err.message || '';
+    const errStatus = getErrorStatus(err);
+    const is429 = errStatus === 429;
+    return { 
+      status: is429 ? 'Quota Exceeded (429)' : 'Failed / Error', 
+      error: errMsg 
+    };
+  }
+}
+
+async function checkAllKeysQuotas() {
+  const promises = apiKeys.map(async (key, idx) => {
+    const result = await verifyKeyQuota(key);
+    keyStatuses[idx] = {
+      index: idx + 1,
+      maskedKey: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : 'Not Set',
+      status: result.status,
+      model: MODEL_NAME,
+      error: result.error,
+      lastChecked: new Date().toLocaleTimeString()
+    };
+  });
+  await Promise.all(promises);
+  logEvent('info', `Completed Gemini API key quota verification check using model ${MODEL_NAME}.`);
+}
+
+// Get the model name from environment or default to gemini-3.5-flash.
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
 // In-memory system logs store for debugging
 const systemLogs = [];
@@ -71,106 +148,163 @@ logEvent('info', `Configured Gemini API keys for rotation: ${apiKeys.length}`);
  * Helper function to call the Gemini API with key rotation.
  * If one key fails (e.g. rate limit), it automatically rotates to the next key.
  */
-async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}) {
+/**
+ * Model priority chain for fallback routing.
+ * Attempts execution across models in priority order to prevent 429 quota exhaustion.
+ */
+const MODEL_FALLBACK_CHAIN = [
+  'gemini-3.5-flash',
+  'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash'
+];
+
+/**
+ * Helper function to determine if we should fall back to the next model in the chain.
+ * Falls back on any temporary, quota, availability, or model-specific error,
+ * but returns false for authentication errors (401 / 403) which cannot be solved by model switching.
+ */
+const isFallbackTrigger = (error) => {
+  const status = getErrorStatus(error);
+  return status !== 401 && status !== 403;
+};
+
+/**
+ * Core stateless content generation with multi-model fallback and key rotation.
+ * Iterates through model priority chain and rotates through API keys.
+ */
+async function generateContentWithFallback(contents, systemInstruction, extraConfig = {}) {
   if (apiKeys.length === 0) {
     const errorMsg = "No Gemini API keys configured. Please add keys to your backend/.env file.";
     logEvent('error', errorMsg);
     throw new Error(errorMsg);
   }
 
-  let attempts = 0;
-  const maxAttempts = apiKeys.length;
   const errors = [];
 
-  while (attempts < maxAttempts) {
-    const keyIndex = (currentKeyIndex + attempts) % apiKeys.length;
-    const apiKey = apiKeys[keyIndex];
-    const maskedKey = apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'undefined';
-    
-    logEvent('info', `Attempting Gemini API call with Key Index ${keyIndex + 1}/${apiKeys.length} (${maskedKey})`, {
-      keyIndex: keyIndex + 1,
-      model: MODEL_NAME,
-      promptSnippet: prompt.substring(0, 150) + '...'
-    });
+  // Loop through model families in priority chain
+  for (const modelName of MODEL_FALLBACK_CHAIN) {
+    let attempts = 0;
+    const maxAttempts = apiKeys.length;
+    let modelHasWorkableKeys = false;
 
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: prompt,
-        config: {
-          ...(systemInstruction ? { systemInstruction } : {}),
-          ...extraConfig
+    // Loop through keys for the current model
+    while (attempts < maxAttempts) {
+      const keyIndex = (currentKeyIndex + attempts) % apiKeys.length;
+      const apiKey = apiKeys[keyIndex];
+      const maskedKey = apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'undefined';
+      
+      let promptSnippet = '';
+      if (typeof contents === 'string') {
+        promptSnippet = contents.substring(0, 150) + '...';
+      } else if (Array.isArray(contents)) {
+        const lastMsg = contents[contents.length - 1];
+        const lastText = lastMsg && lastMsg.parts && lastMsg.parts[0] ? lastMsg.parts[0].text : '';
+        promptSnippet = `[Chat History - ${contents.length} messages. Last: ${typeof lastText === 'string' ? lastText.substring(0, 100) : ''}]`;
+      } else {
+        promptSnippet = '[Object prompt]';
+      }
+
+      logEvent('info', `Attempting model ${modelName} with Key Index ${keyIndex + 1}/${apiKeys.length} (${maskedKey})`, {
+        model: modelName,
+        keyIndex: keyIndex + 1,
+        promptSnippet
+      });
+
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: contents,
+          config: {
+            ...(systemInstruction ? { systemInstruction } : {}),
+            ...extraConfig
+          }
+        });
+
+        // Update current index to this successful key
+        currentKeyIndex = keyIndex;
+        logEvent('info', `Success! Model ${modelName} responded using Key Index ${keyIndex + 1}/${apiKeys.length}`);
+        return response.text;
+      } catch (error) {
+        const errStatus = getErrorStatus(error);
+        const errMsg = error.message || '';
+        
+        logEvent('warn', `API call failed for model ${modelName} using Key ${keyIndex + 1}/${apiKeys.length} (Status: ${errStatus})`, {
+          model: modelName,
+          keyIndex: keyIndex + 1,
+          errorMessage: errMsg
+        });
+
+        errors.push({ model: modelName, keyIndex: keyIndex + 1, status: errStatus, message: errMsg });
+        
+        // If this error is a fallback trigger, we continue model rotation
+        if (isFallbackTrigger(error)) {
+          modelHasWorkableKeys = true; 
         }
-      });
+        attempts++;
+      }
+    }
 
-      // Update current index to this successful key
-      currentKeyIndex = keyIndex;
-      logEvent('info', `Gemini API call succeeded using Key Index ${keyIndex + 1}/${apiKeys.length}`);
-      return response.text;
-    } catch (error) {
-      const errStatus = error.status || error.statusCode || 500;
-      logEvent('warn', `Gemini API call failed using Key Index ${keyIndex + 1}/${apiKeys.length}`, {
-        keyIndex: keyIndex + 1,
-        errorMessage: error.message,
-        errorStatus: errStatus
-      });
-      
-      errors.push({
-        keyIndex: keyIndex + 1,
-        message: error.message,
-        status: errStatus
-      });
-      
-      attempts++;
+    // If we exhausted all keys for this model and it was due to quota/model-availability,
+    // we sequentially cascade to the next model in the chain.
+    if (modelHasWorkableKeys) {
+      logEvent('info', `Cascading down from model ${modelName} to the next model in fallback chain.`);
+    } else {
+      // If none of the keys failed with quota/availability (e.g. all 7 keys failed with Auth errors),
+      // we stop and throw, because changing models won't fix invalid keys.
+      const allAuth = errors.filter(e => e.model === modelName).every(e => e.status === 401 || e.status === 403);
+      if (allAuth) {
+        logEvent('error', `Aborting fallback: All keys failed with authentication errors.`);
+        break;
+      }
     }
   }
 
-  // Determine the nature of the errors to raise an appropriate diagnostic error
-  const allAuthErrors = errors.every(err => 
-    err.status === 401 || 
-    err.status === 403 || 
-    (err.message && (
-      err.message.includes("API_KEY") || 
-      err.message.includes("key is invalid") || 
-      err.message.includes("API key") || 
-      err.message.toLowerCase().includes("auth") || 
-      err.message.toLowerCase().includes("invalid key")
-    ))
-  );
-
-  const anyRateLimit = errors.some(err => 
-    err.status === 429 || 
-    (err.message && (
-      err.message.includes("429") || 
-      err.message.toLowerCase().includes("quota") || 
-      err.message.toLowerCase().includes("rate limit") || 
-      err.message.toLowerCase().includes("resource exhausted")
-    ))
-  );
-
-  let errorMsg = "All configured Gemini API keys failed.";
-  let status = 500;
-
-  if (allAuthErrors) {
-    errorMsg = "Authentication failed: All configured Gemini API keys are invalid. Please check your backend/.env file.";
-    status = 403;
-  } else if (anyRateLimit) {
-    errorMsg = "Rate limits or daily quotas exceeded on all configured keys. Please try again later.";
-    status = 429;
-  } else {
-    const lastError = errors[errors.length - 1];
-    errorMsg = `Gemini API error: ${lastError.message}`;
-    status = lastError.status || 500;
-  }
-
-  logEvent('error', `All ${apiKeys.length} keys failed. Final status: ${status}. Message: ${errorMsg}`, {
-    allErrors: errors
-  });
-
-  const finalError = new Error(errorMsg);
-  finalError.status = status;
+  // If all models and keys failed
+  const finalErrorMsg = "All Gemini models and rotating API keys failed. Check your network, authentication, or API quota status.";
+  logEvent('error', finalErrorMsg, { allErrors: errors });
+  
+  const finalError = new Error(finalErrorMsg);
+  finalError.status = errors[errors.length - 1]?.status || 500;
+  finalError.details = errors;
   throw finalError;
+}
+
+/**
+ * Legacy wrapper to maintain compatibility with existing generate calls.
+ */
+async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}) {
+  return generateContentWithFallback(prompt, systemInstruction, extraConfig);
+}
+
+/**
+ * Executes a stateless chat turn, appending the user prompt to the history,
+ * calling the fallback router, and appending the model response.
+ */
+async function executeStatelessChatTurn(history, newPrompt, systemInstruction, responseMimeType = "text/plain") {
+  const updatedHistory = [...history];
+  if (newPrompt) {
+    updatedHistory.push({
+      role: 'user',
+      parts: [{ text: newPrompt }]
+    });
+  }
+  
+  const generatedText = await generateContentWithFallback(updatedHistory, systemInstruction, { responseMimeType });
+  
+  updatedHistory.push({
+    role: 'model',
+    parts: [{ text: generatedText }]
+  });
+  
+  return {
+    updatedHistory,
+    text: generatedText
+  };
 }
 
 /**
@@ -178,6 +312,9 @@ async function generateContentWithRotation(prompt, systemInstruction, extraConfi
  * Uses native Promise-based API for safety.
  */
 async function parseFileBuffer(buffer, ext) {
+  if (ext === 'txt') {
+    return buffer.toString('utf8');
+  }
   try {
     const text = await officeParser.parseOfficeAsync(buffer);
     return text;
@@ -485,6 +622,19 @@ app.get('/api/health', (req, res) => {
 });
 
 /**
+ * Check Quotas Endpoint
+ */
+app.get('/api/check-quotas', async (req, res) => {
+  try {
+    await checkAllKeysQuotas();
+    res.redirect('/api/logs');
+  } catch (error) {
+    logEvent('error', `Failed to check quotas: ${error.message}`);
+    res.status(500).send(`Error checking quotas: ${error.message}`);
+  }
+});
+
+/**
  * Debug Logs Dashboard Endpoint
  */
 app.get('/api/logs', (req, res) => {
@@ -653,6 +803,29 @@ app.get('/api/logs', (req, res) => {
             window.location.reload();
           }
         }, 10000);
+
+        function toggleErrorText(cell) {
+          // Temporarily disable auto refresh while inspecting error so it doesn't close on reload
+          autoRefresh = false;
+          
+          if (cell.style.whiteSpace === 'normal') {
+            cell.style.whiteSpace = 'nowrap';
+            cell.style.maxWidth = '300px';
+            cell.style.overflow = 'hidden';
+            cell.style.textOverflow = 'ellipsis';
+            // Resume auto refresh if no cells are expanded
+            const allCells = document.querySelectorAll('.error-cell');
+            const anyExpanded = Array.from(allCells).some(c => c.style.whiteSpace === 'normal');
+            if (!anyExpanded) {
+              autoRefresh = true;
+            }
+          } else {
+            cell.style.whiteSpace = 'normal';
+            cell.style.maxWidth = 'none';
+            cell.style.overflow = 'visible';
+            cell.style.textOverflow = 'clip';
+          }
+        }
       </script>
     </head>
     <body>
@@ -671,6 +844,51 @@ app.get('/api/logs', (req, res) => {
           </div>
         </header>
         <main>
+          <!-- Quota Checker Table -->
+          <section style="margin-bottom: 2rem; background-color: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h2 style="margin: 0; font-size: 1.3rem; color: var(--info-color);">Gemini API Keys Quota Status</h2>
+              <a href="/api/check-quotas" class="btn btn-primary" style="background-color: var(--info-color); color: #0f172a; border-radius: 6px; padding: 0.4rem 0.8rem; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">🔄 Check Quotas Now</a>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+              <thead>
+                <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-muted);">
+                  <th style="padding: 8px;">Key Index</th>
+                  <th style="padding: 8px;">Masked Key</th>
+                  <th style="padding: 8px;">Model Checked</th>
+                  <th style="padding: 8px;">Status</th>
+                  <th style="padding: 8px;">Last Checked</th>
+                  <th style="padding: 8px;">Details / Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${keyStatuses.map(k => {
+                  let badgeColor = '#64748b'; // Gray
+                  if (k.status === 'Active (Success)') badgeColor = '#10b981'; // Green
+                  if (k.status === 'Quota Exceeded (429)') badgeColor = '#f59e0b'; // Amber
+                  if (k.status.startsWith('Failed') || k.status.startsWith('Error')) badgeColor = '#ef4444'; // Red
+                  
+                  return `
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                      <td style="padding: 8px; font-weight: bold;">Key #${k.index}</td>
+                      <td style="padding: 8px; font-family: monospace;">${k.maskedKey}</td>
+                      <td style="padding: 8px; font-family: monospace; font-size: 0.85rem; color: var(--info-color);">${k.model || '-'}</td>
+                      <td style="padding: 8px;">
+                        <span style="background-color: ${badgeColor}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">
+                          ${k.status}
+                        </span>
+                      </td>
+                      <td style="padding: 8px; color: var(--text-muted);">${k.lastChecked || 'Never Checked'}</td>
+                      <td class="error-cell" style="padding: 8px; font-size: 0.8rem; color: #f87171; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;" onclick="toggleErrorText(this)" title="Click to view/select full error message">
+                        ${k.error || '-'}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </section>
+
           <div class="log-list">
             ${systemLogs.length === 0 
               ? '<div class="empty">No events logged yet. Perform a generation or revision request to populate the logs.</div>' 
@@ -683,6 +901,116 @@ app.get('/api/logs', (req, res) => {
     </html>
   `;
   res.send(html);
+});
+
+/**
+ * Interactive Speaker Notes Brainstorm Chat Endpoint
+ */
+app.post('/api/chat-speaker-notes', async (req, res) => {
+  try {
+    const { messages, currentDocument, toc, currentSectionIndex, stage, topic } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Missing messages array.' });
+    }
+
+    logEvent('info', `Received speaker notes chat request. Messages: ${messages.length}, Stage: ${stage}, Section Index: ${currentSectionIndex}`);
+    // Convert history messages (excluding latest prompt) to Gemini content format
+    const history = messages.slice(0, -1).map(m => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }]
+    }));
+
+    const lastMessage = messages[messages.length - 1]?.text || '';
+
+    const systemInstruction = 
+      `You are the AI Presentation Assistant, an expert presentation coach and speaker notes author. Your goal is to guide the user step-by-step through brainstorming and creating a complete, high-quality speaker notes document.
+ 
+You operate in a sequence of stages:
+1. Title Brainstorming ("title_brainstorm"):
+   - Welcome the user. Brainstorm presentation title ideas based on their topic.
+   - Do NOT propose a Table of Contents (ToC) yet. Focus on refining the title.
+   - Propose title ideas in "options" as plain suggestions (e.g. ["Option A", "Option B", "Suggest more titles"]). Do NOT prefix them with "Approve Title:" or other action verbs.
+   - Once the title is approved (action = "approve_title"), transition nextStage to "topic_scope".
+2. Scope Brainstorming ("topic_scope"):
+   - Brainstorm the talking points, main concepts, and overall scope of the presentation.
+   - Do NOT generate the ToC yet. Chat with the user, answer their questions, and clarify what they want to talk about.
+   - Propose options like: ["Generate Table of Contents", "Add another talking point"].
+   - When the user clicks "Generate Table of Contents", generate a ToC built STRICTLY around the discussed talking points and transition nextStage to "toc".
+3. Table of Contents Approval ("toc"):
+   - Review and refine the ToC outline.
+   - Propose options like: ["Send ToC to Document", "Make ToC shorter", "Add a section"].
+   - Once ToC is approved (action = "approve_toc"), transition nextStage to "section_brainstorm" and currentSectionIndex to 0.
+4. Section Brainstorming ("section_brainstorm"):
+   - Enforce that you MUST discuss the sections one-by-one, in the exact order defined in the ToC. Focus ONLY on brainstorming ideas for the active section (Section Index ${currentSectionIndex}: "${toc[currentSectionIndex] || ''}").
+   - Chat, suggest points, and ask questions. Do NOT generate the detailed draft notes (proposedSectionContent) yet.
+   - Propose options like: ["Show Speaker Notes for this Section", "Suggest section ideas"].
+   - When the user prompts to generate the draft, return the notes draft in "proposedSectionContent" and propose options like: ["Send to Document", "Regenerate Draft"].
+   - Once committed (action = "approve_section"), move to the next section or transition nextStage to "complete".
+5. Section Editing ("section_edit"):
+   - You are revising the notes for Section Index ${currentSectionIndex}: "${toc[currentSectionIndex] || ''}".
+   - Chat with the user about edits. Do NOT generate the revised draft notes until the user clicks "Show Speaker Notes for this Section".
+   - When requested, output the updated draft in "proposedSectionContent" and offer: ["Send to Document", "Regenerate Draft"].
+   - Once committed (action = "approve_section"), return nextStage to "complete".
+6. Completion ("complete"):
+   - The document is finished! Congratulate the user.
+   - Propose options to edit each section, e.g. ["Edit Section 1: Intro", "Edit Section 2: Body", ...] and "Generate Takeaway Notes".
+ 
+Current State of the Workspace:
+- Presentation Topic: "${topic || 'Not set yet'}"
+- Current Stage: "${stage || 'title_brainstorm'}"
+- Table of Contents: ${JSON.stringify(toc || [])}
+- Current Section Index: ${currentSectionIndex ?? 0}
+- Current Section Name: "${toc && toc[currentSectionIndex] ? toc[currentSectionIndex] : 'None'}"
+ 
+Current Document Content (Ground Truth / Background Context):
+-------------------
+${currentDocument || '(Empty Document)'}
+-------------------
+ 
+You must ALWAYS respond with a JSON object. The JSON object must match this schema:
+{
+  "reply": "Your conversational message to the user (written in friendly, encouraging Markdown). Summarize your suggestions, ask your next clarifying question, or explain the drafted content.",
+  "nextStage": "title_brainstorm | topic_scope | toc | section_brainstorm | section_edit | complete",
+  "topic": "The finalized or proposed presentation title/topic (updating dynamically as the user brainstorms and refines it)",
+  "toc": ["Header 1", "Header 2", ...], // Include the current or updated Table of Contents array
+  "proposedSectionContent": "HTML snippet (clean, semantic, print-safe) containing the proposed speaker notes for the CURRENT section ONLY. Start it with a header like <h2>Section Name</h2>. Do not wrap this in a full A4 page, just return the inner elements. Leave empty if not proposing content.",
+  "currentSectionIndex": 0, // The index of the section you are currently working on
+  "action": "approve_title | propose_toc | approve_toc | propose_section | approve_section | chat",
+  "options": ["Option A", "Option B", ...] // Provide 2 to 5 clickable options/buttons for the user to select. Present choices appropriate for the current stage.
+}
+ 
+Contextual Guidelines:
+- Document Awareness & Context: The 'Current Document Content' above contains the actual text/content that has already been generated, approved, and added to the presentation document. You must treat this document content as background context and the absolute ground truth. You must remain fully aware of what is already in the document, so that when the user refers to it, you understand it perfectly.
+- Section Name Alignment: The section names used in your proposed section content headers (e.g. <h2>Section Name</h2> in 'proposedSectionContent') MUST match the section names defined in the Table of Contents ('toc') and the document layout exactly. Do not invent new section names or modify them.
+- Strict Flow Execution: You must strictly follow the document structure and flows that the user has approved and committed to the document. Do not drift from the ideas and outlines established in the Table of Contents.
+- Persistent Context: You have access to the full chat log and the entire generated document. Always use this information to maintain perfect context.
+- Keep your replies under 150 words. Be focused and helpful.
+- Return ONLY the raw JSON object. Do not wrap in markdown code blocks.`;
+
+    // Execute stateless chat turn using fallback router
+    const result = await executeStatelessChatTurn(
+      history,
+      lastMessage,
+      systemInstruction,
+      "application/json"
+    );
+
+    let parsedResponse = cleanAndParseJson(result.text);
+
+    if (!parsedResponse) {
+      throw new Error("Failed to parse AI response as JSON.");
+    }
+
+    res.json(parsedResponse);
+  } catch (error) {
+    logEvent('error', `Chat speaker notes failed: ${error.message}`);
+    const status = error.status || 500;
+    res.status(status).json({ 
+      error: status === 429 ? 'rate_limit_exceeded' : 'error', 
+      message: error.message || 'An error occurred during chat.' 
+    });
+  }
 });
 
 /**
@@ -957,4 +1285,8 @@ Return ONLY the final corrected HTML/CSS code. Do NOT add markdown code fences (
 
 app.listen(PORT, () => {
   logEvent('info', `Backend server running on http://localhost:${PORT}`);
+  // Perform an initial key quota check at startup in the background
+  checkAllKeysQuotas().catch(err => {
+    logEvent('error', `Failed initial startup key quota check: ${err.message}`);
+  });
 });
