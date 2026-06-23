@@ -24,12 +24,16 @@ const SpeakerNotesScreen = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [options, setOptions] = useState([]);
+  const [chatSummary, setChatSummary] = useState('');
+  const [lastSummarizedIndex, setLastSummarizedIndex] = useState(0);
 
   // Initial chat setup
   const [chatHistory, setChatHistory] = useState([
     { 
       role: 'model', 
-      text: "Welcome to the AI Presentation Assistant! Let's start by brainstorming a title or topic for your presentation.\n\nWhat is the general subject or ideas you are thinking about? I will suggest some good titles for us to choose from!" 
+      text: "Welcome to the AI Presentation Assistant! Let's start by brainstorming a title or topic for your presentation.\n\nWhat is the general subject or ideas you are thinking about? I will suggest some good titles for us to choose from!",
+      stage: 'title_brainstorm',
+      sectionIndex: 0
     }
   ]);
 
@@ -76,12 +80,12 @@ const SpeakerNotesScreen = ({
               box-sizing: border-box !important;
             }
 
-            /* A4 Page Formatting */
+                        /* A4 Page Formatting */
             .page {
               background-color: white !important;
               width: 210mm !important;
-              min-height: 297mm !important;
-              padding: 25mm 20mm !important;
+              height: 297mm !important;
+              padding: 25mm 20mm 25mm 20mm !important;
               margin: 0 auto 24px auto !important;
               box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
               border-radius: 4px !important;
@@ -190,6 +194,31 @@ const SpeakerNotesScreen = ({
               border-top: 1px solid #f1f5f9 !important;
               padding-top: 6px !important;
             }
+
+            @media print {
+              html, body {
+                background-color: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                display: block !important;
+              }
+              .page {
+                box-shadow: none !important;
+                margin: 0 !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                border-radius: 0 !important;
+                padding: 25mm 20mm 25mm 20mm !important;
+                box-sizing: border-box !important;
+                display: block !important;
+              }
+              .section-block {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
           </style>
         </head>
         <body>
@@ -210,8 +239,244 @@ const SpeakerNotesScreen = ({
 
       doc.write(fullHtml);
       doc.close();
+
+      setTimeout(() => {
+        try {
+          const iframeDoc = iframeRef.current?.contentDocument;
+          if (!iframeDoc) return;
+
+          const pages = iframeDoc.querySelectorAll('.page');
+          const page1 = iframeDoc.getElementById('page-1');
+          const pageHeight = page1?.offsetHeight || 1122;
+
+          let needsRepaginate = false;
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(`<body>${documentHtml}</body>`, 'text/html');
+
+          // 1. Clean up empty pages (except page-1 and page-2)
+          let docModified = false;
+          const domPages = doc.querySelectorAll('.page');
+          for (let i = 2; i < domPages.length; i++) {
+            const domPage = domPages[i];
+            const container = domPage.querySelector('.section-content-container');
+            if (container) {
+              const hasText = container.textContent.trim().length > 0;
+              const hasImages = container.querySelector('img') !== null;
+              if (!hasText && !hasImages) {
+                domPage.remove();
+                docModified = true;
+              }
+            }
+          }
+          if (docModified) {
+            setDocumentHtml(doc.body.innerHTML);
+            return;
+          }
+
+          // 2. Pagination Check (Overflow & Split)
+          for (let i = 1; i < domPages.length; i++) {
+            const iframePage = pages[i];
+            const domPage = domPages[i];
+
+            if (iframePage && domPage && iframePage.scrollHeight > pageHeight) {
+              const domContainer = domPage.querySelector('.section-content-container');
+              if (domContainer) {
+                const domBlocks = domContainer.querySelectorAll('.section-block');
+                if (domBlocks.length > 0) {
+                  needsRepaginate = true;
+
+                  const lastBlock = domBlocks[domBlocks.length - 1];
+                  const lastBlockIndex = lastBlock.getAttribute('data-section-index');
+                  const lastBlockContent = lastBlock.querySelector('.section-content');
+                  
+                  if (lastBlockContent) {
+                    const contentChildren = lastBlockContent.children;
+                    
+                    // If the last block ends with a list (ul or ol), split the list items!
+                    const lastChild = contentChildren[contentChildren.length - 1];
+                    const isList = lastChild && (lastChild.tagName === 'UL' || lastChild.tagName === 'OL');
+                    
+                    if (isList && lastChild.children.length > 1) {
+                      // Move the last <li> element of the list
+                      const lastLi = lastChild.lastElementChild;
+                      const lastLiHtml = lastLi.outerHTML;
+                      lastLi.remove();
+
+                      const originalListTag = lastChild.tagName; // UL or OL
+                      const startVal = parseInt(lastChild.getAttribute('start') || '1', 10);
+                      const originalListItemsCount = lastChild.children.length;
+
+                      const nextPageNum = i + 2;
+                      const nextDomPage = domPages[i + 1];
+
+                      if (nextDomPage) {
+                        const nextContainer = nextDomPage.querySelector('.section-content-container');
+                        let firstBlockOnNextPage = nextContainer.querySelector(`.section-block[data-section-index="${lastBlockIndex}"]`);
+                        
+                        if (firstBlockOnNextPage) {
+                          const nextContent = firstBlockOnNextPage.querySelector('.section-content');
+                          let firstChildOfNext = nextContent.firstElementChild;
+                          
+                          if (firstChildOfNext && firstChildOfNext.tagName === originalListTag) {
+                            // Prepend to existing list on next page
+                            firstChildOfNext.insertAdjacentHTML('afterbegin', lastLiHtml);
+                            if (originalListTag === 'OL') {
+                              firstChildOfNext.setAttribute('start', String(startVal + originalListItemsCount));
+                            }
+                          } else {
+                            // Create a new list container at the top of the next block
+                            const listHtml = originalListTag === 'OL'
+                              ? `<ol start="${startVal + originalListItemsCount}">${lastLiHtml}</ol>`
+                              : `<ul>${lastLiHtml}</ul>`;
+                            nextContent.insertAdjacentHTML('afterbegin', listHtml);
+                          }
+                        } else {
+                          // Create a new block starting with a list container
+                          const listHtml = originalListTag === 'OL'
+                            ? `<ol start="${startVal + originalListItemsCount}">${lastLiHtml}</ol>`
+                            : `<ul>${lastLiHtml}</ul>`;
+                          const newBlockHtml = `
+                            <div class="section-block" data-section-index="${lastBlockIndex}" style="margin-bottom: 24px;">
+                              <div class="section-content">
+                                ${listHtml}
+                              </div>
+                            </div>
+                          `;
+                          nextContainer.insertAdjacentHTML('afterbegin', newBlockHtml);
+                        }
+                      } else {
+                        // Create a new page with a new list container
+                        const listHtml = originalListTag === 'OL'
+                          ? `<ol start="${startVal + originalListItemsCount}">${lastLiHtml}</ol>`
+                          : `<ul>${lastLiHtml}</ul>`;
+                        const newPageHtml = `
+                          <div class="page" id="page-${nextPageNum}">
+                            <div class="section-content-container" style="padding-bottom: 20mm;">
+                              <div class="section-block" data-section-index="${lastBlockIndex}" style="margin-bottom: 24px;">
+                                <div class="section-content">
+                                  ${listHtml}
+                                </div>
+                              </div>
+                            </div>
+                            <div class="page-footer">
+                              <span>${topic || 'Speaker Notes'}</span>
+                              <span>Page ${nextPageNum}</span>
+                            </div>
+                          </div>
+                        `;
+                        doc.body.insertAdjacentHTML('beforeend', newPageHtml);
+                      }
+                    } else if (contentChildren.length > 1) {
+                      // If the last block has multiple paragraphs/elements (not lists), split the last element
+                      const lastChild = contentChildren[contentChildren.length - 1];
+                      const lastChildHtml = lastChild.outerHTML;
+                      lastChild.remove();
+
+                      const nextPageNum = i + 2;
+                      const nextDomPage = domPages[i + 1];
+
+                      if (nextDomPage) {
+                        const nextContainer = nextDomPage.querySelector('.section-content-container');
+                        let firstBlockOnNextPage = nextContainer.querySelector(`.section-block[data-section-index="${lastBlockIndex}"]`);
+                        if (firstBlockOnNextPage) {
+                          const nextContent = firstBlockOnNextPage.querySelector('.section-content');
+                          nextContent.insertAdjacentHTML('afterbegin', lastChildHtml);
+                        } else {
+                          const newBlockHtml = `
+                            <div class="section-block" data-section-index="${lastBlockIndex}" style="margin-bottom: 24px;">
+                              <div class="section-content">
+                                ${lastChildHtml}
+                              </div>
+                            </div>
+                          `;
+                          nextContainer.insertAdjacentHTML('afterbegin', newBlockHtml);
+                        }
+                      } else {
+                        const newPageHtml = `
+                          <div class="page" id="page-${nextPageNum}">
+                            <div class="section-content-container" style="padding-bottom: 20mm;">
+                              <div class="section-block" data-section-index="${lastBlockIndex}" style="margin-bottom: 24px;">
+                                <div class="section-content">
+                                  ${lastChildHtml}
+                                </div>
+                              </div>
+                            </div>
+                            <div class="page-footer">
+                              <span>${topic || 'Speaker Notes'}</span>
+                              <span>Page ${nextPageNum}</span>
+                            </div>
+                          </div>
+                        `;
+                        doc.body.insertAdjacentHTML('beforeend', newPageHtml);
+                      }
+                    } else {
+                      // Move the entire section block if there are other blocks on this page
+                      if (domBlocks.length > 1) {
+                        const lastBlockHtml = lastBlock.outerHTML;
+                        lastBlock.remove();
+
+                        const nextPageNum = i + 2;
+                        const nextDomPage = domPages[i + 1];
+
+                        if (nextDomPage) {
+                          const nextContainer = nextDomPage.querySelector('.section-content-container');
+                          nextContainer.insertAdjacentHTML('afterbegin', lastBlockHtml);
+                        } else {
+                          const newPageHtml = `
+                            <div class="page" id="page-${nextPageNum}">
+                              <div class="section-content-container" style="padding-bottom: 20mm;">
+                                ${lastBlockHtml}
+                              </div>
+                              <div class="page-footer">
+                                <span>${topic || 'Speaker Notes'}</span>
+                                <span>Page ${nextPageNum}</span>
+                              </div>
+                            </div>
+                          `;
+                          doc.body.insertAdjacentHTML('beforeend', newPageHtml);
+                        }
+                      } else {
+                        needsRepaginate = false;
+                      }
+                    }
+                  }
+
+                  if (needsRepaginate) break;
+                }
+              }
+            }
+          }
+
+          if (needsRepaginate) {
+            setDocumentHtml(doc.body.innerHTML);
+            return;
+          }
+
+          // 3. Dynamic Page Numbers lookup in ToC
+          if (page1) {
+            toc.forEach((sec, idx) => {
+              const section = iframeDoc.querySelector(`.section-block[data-section-index="${idx}"]`);
+              const tocPageSpan = iframeDoc.getElementById(`toc-page-num-${idx}`);
+              
+              if (section && tocPageSpan) {
+                let parentPage = section.closest('.page');
+                if (parentPage) {
+                  const pageId = parentPage.id;
+                  const match = pageId.match(/page-(\d+)/);
+                  if (match && match[1]) {
+                    tocPageSpan.innerText = `Page ${match[1]}`;
+                  }
+                }
+              }
+            });
+          }
+
+        } catch (e) {
+          console.error("Error in dynamic pagination or ToC page updating:", e);
+        }
+      }, 100);
     }
-  }, [documentHtml]);
+  }, [documentHtml, toc]);
 
   // Adjust Zoom Level
   useEffect(() => {
@@ -223,9 +488,66 @@ const SpeakerNotesScreen = ({
     }
   }, [zoom, documentHtml]);
 
+  const handleOptionClick = (option) => {
+    const lowerOpt = option.toLowerCase();
+    
+    if (stage === 'title_brainstorm') {
+      if (
+        lowerOpt.includes('suggest') || 
+        lowerOpt.includes('more') || 
+        lowerOpt.includes('other') || 
+        lowerOpt.includes('different')
+      ) {
+        handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+      } else {
+        handleApproveTitle(option);
+      }
+    } else if (stage === 'toc') {
+      if (
+        lowerOpt.includes('send toc') || 
+        lowerOpt.includes('approve toc') || 
+        lowerOpt.includes('send to document') ||
+        lowerOpt.includes('approve table of contents')
+      ) {
+        handleApproveToC();
+      } else {
+        handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+      }
+    } else if (stage === 'section_brainstorm' || stage === 'section_edit') {
+      if (lowerOpt.includes('show speaker notes') || lowerOpt.includes('show notes')) {
+        handleShowSpeakerNotes();
+      } else if (lowerOpt.includes('send to document') || lowerOpt.includes('sent to document')) {
+        handleApproveSection();
+      } else {
+        handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+      }
+    } else if (stage === 'complete') {
+      if (lowerOpt.startsWith('edit section')) {
+        const match = option.match(/edit section\s+(\d+)/i);
+        if (match && match[1]) {
+          const secIdx = parseInt(match[1], 10) - 1;
+          handleStartSectionEdit(secIdx);
+        } else {
+          handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+        }
+      } else {
+        handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+      }
+    } else {
+      if (lowerOpt.startsWith('approve title') || lowerOpt.includes('approve title:')) {
+        const approvedTitle = option.includes(':') 
+          ? option.split(':')[1].replace(/['"]+/g, '').trim() 
+          : topic;
+        handleApproveTitle(approvedTitle);
+      } else {
+        handleSendMessage(option, undefined, undefined, undefined, undefined, undefined, option);
+      }
+    }
+  };
+
   // --- AI Chat Actions ---
 
-  const handleSendMessage = async (textToSend, stageOverride, topicOverride, indexOverride, tocOverride, documentHtmlOverride) => {
+  const handleSendMessage = async (textToSend, stageOverride, topicOverride, indexOverride, tocOverride, documentHtmlOverride, displayTextToSend) => {
     const text = textToSend || inputValue;
     if (!text.trim() || isLoading) return;
 
@@ -233,15 +555,32 @@ const SpeakerNotesScreen = ({
     setInputValue('');
     setOptions([]); // Clear options immediately on message send
 
-    const newHistory = [...chatHistory, { role: 'user', text }];
-    setChatHistory(newHistory);
-    setIsLoading(true);
-
     const activeStage = stageOverride !== undefined ? stageOverride : stage;
     const activeTopic = topicOverride !== undefined ? topicOverride : topic;
     const activeIndex = indexOverride !== undefined ? indexOverride : currentSectionIndex;
     const activeToc = tocOverride !== undefined ? tocOverride : toc;
     const activeDocumentHtml = documentHtmlOverride !== undefined ? documentHtmlOverride : documentHtml;
+
+    const newHistory = [...chatHistory, { 
+      role: 'user', 
+      text,
+      displayText: displayTextToSend || (textToSend ? textToSend : undefined),
+      stage: activeStage,
+      sectionIndex: activeIndex
+    }];
+    setChatHistory(newHistory);
+    setIsLoading(true);
+
+    // Filter messages to send only the active stage/section messages to backend
+    const activeMessages = newHistory.filter(msg => {
+      // Always include the latest user message
+      if (msg === newHistory[newHistory.length - 1]) return true;
+
+      if (activeStage === 'section_brainstorm' || activeStage === 'section_edit') {
+        return msg.stage === activeStage && msg.sectionIndex === activeIndex;
+      }
+      return msg.stage === activeStage;
+    });
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat-speaker-notes`, {
@@ -250,7 +589,8 @@ const SpeakerNotesScreen = ({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          messages: newHistory,
+          messages: activeMessages,
+          chatSummary: chatSummary,
           currentDocument: activeDocumentHtml,
           toc: activeToc,
           currentSectionIndex: activeIndex,
@@ -265,8 +605,16 @@ const SpeakerNotesScreen = ({
         throw new Error(data.message || 'An error occurred while calling the chatbot.');
       }
 
-      // Add AI reply to chat log
-      setChatHistory(prev => [...prev, { role: 'model', text: data.reply }]);
+      // Add AI reply to chat log with stage/sectionIndex metadata
+      setChatHistory(prev => [...prev, { 
+        role: 'model', 
+        text: data.reply,
+        stage: data.nextStage || activeStage,
+        sectionIndex: data.currentSectionIndex !== undefined ? data.currentSectionIndex : activeIndex,
+        toc: data.toc || activeToc,
+        proposedSectionContent: data.proposedSectionContent,
+        options: data.options || []
+      }]);
 
       // Update state based on structured response
       if (data.topic) {
@@ -292,8 +640,6 @@ const SpeakerNotesScreen = ({
         setOptions([]);
       }
 
-
-
     } catch (err) {
       console.error(err);
       setErrorMsg(err.message || 'Failed to communicate with presentation assistant.');
@@ -304,15 +650,91 @@ const SpeakerNotesScreen = ({
     }
   };
 
+  // Effect to automatically summarize completed sections/stages
+  useEffect(() => {
+    const triggerSummarization = async () => {
+      if (chatHistory.length === 0) return;
+
+      const completedMessages = [];
+      let nextSummarizeIndex = lastSummarizedIndex;
+
+      for (let i = lastSummarizedIndex; i < chatHistory.length; i++) {
+        const msg = chatHistory[i];
+        const isMsgActive = (stage === 'section_brainstorm' || stage === 'section_edit')
+          ? (msg.stage === stage && msg.sectionIndex === currentSectionIndex)
+          : (msg.stage === stage);
+
+        if (!isMsgActive) {
+          completedMessages.push(msg);
+          nextSummarizeIndex = i + 1;
+        } else {
+          break; // Stop at the first active message
+        }
+      }
+
+      const messagesToSummarize = completedMessages.filter(m => m.text && m.text.trim());
+
+      if (messagesToSummarize.length > 0) {
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/summarize-chats`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ messages: messagesToSummarize })
+          });
+          const data = await response.json();
+          if (response.ok && data.summary) {
+            setChatSummary(prev => {
+              const prefix = prev ? `${prev}\n\n` : '';
+              return `${prefix}${data.summary}`;
+            });
+            setLastSummarizedIndex(nextSummarizeIndex);
+          }
+        } catch (err) {
+          console.error("Failed to summarize completed chats:", err);
+        }
+      } else if (nextSummarizeIndex > lastSummarizedIndex) {
+        // If there were messages but none of them had valid text to summarize, just advance
+        setLastSummarizedIndex(nextSummarizeIndex);
+      }
+    };
+
+    triggerSummarization();
+  }, [stage, currentSectionIndex, chatHistory, lastSummarizedIndex]);
+
   // Helper: Approve title and switch to scope brainstorming
   const handleApproveTitle = (titleValue) => {
     const finalTitle = titleValue || topic || 'Speaker Notes';
     setTopic(finalTitle);
     setStage('topic_scope');
+
+    // Generate draft cover page with the approved title immediately
+    const draftCoverHtml = `
+      <div class="page" id="page-1">
+        <div style="text-align: center; margin-top: 60px; margin-bottom: 50px;">
+          <h1 class="title">${finalTitle}</h1>
+          <p class="subtitle">Presentation Speaker Notes</p>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 40px 0;">
+        <div style="border: 2px dashed #e2e8f0; border-radius: 12px; padding: 40px; text-align: center; color: #94a3b8; font-size: 14px; margin-top: 40px;">
+          📚 Brainstorming presentation scope... Outline and notes will appear here once Table of Contents is approved.
+        </div>
+        <div class="page-footer">
+          <span>${finalTitle}</span>
+        </div>
+      </div>
+    `;
+    setDocumentHtml(draftCoverHtml);
+
     handleSendMessage(
       `I approve the title: "${finalTitle}". Let's start brainstorming the talking points and scope of the presentation.`,
       'topic_scope',
-      finalTitle
+      finalTitle,
+      undefined,
+      undefined,
+      draftCoverHtml,
+      `Approve Title: "${finalTitle}"`
     );
   };
 
@@ -320,10 +742,12 @@ const SpeakerNotesScreen = ({
   const applyToCApproval = (tocList, finalTopic) => {
     const titleToUse = finalTopic || topic || 'Speaker Notes';
     const tocHtml = tocList.map((item, idx) => `
-      <div class="toc-item">
-        <span>${idx + 1}. ${item}</span>
-        <div class="toc-item-dots"></div>
-        <span>Page ${idx + 2}</span>
+      <div class="toc-item" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: #334155; margin-bottom: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px;">
+        <span style="display: flex; align-items: center;">
+          <span style="background: #f1f5f9; color: #475569; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; margin-right: 10px;">${idx + 1}</span>
+          <span>${item}</span>
+        </span>
+        <span id="toc-page-num-${idx}" class="toc-page-num" style="color: #64748b; font-weight: 600; font-size: 0.8rem;"></span>
       </div>
     `).join('');
 
@@ -335,12 +759,17 @@ const SpeakerNotesScreen = ({
         </div>
         <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 40px 0;">
         <h2 class="section-title">Table of Contents</h2>
-        <div class="toc-list">
+        <div class="toc-list" style="display: flex; flex-direction: column; gap: 4px;">
           ${tocHtml}
         </div>
         <div class="page-footer">
-          <span>AI Presentation Assistant</span>
-          <span>Page 1 of ${tocList.length + 1}</span>
+          <span>${titleToUse}</span>
+        </div>
+      </div>
+      <div class="page" id="page-2">
+        <div id="section-content-container" class="section-content-container" style="padding-bottom: 20mm;"></div>
+        <div class="page-footer">
+          <span>${titleToUse}</span>
         </div>
       </div>
     `;
@@ -353,60 +782,64 @@ const SpeakerNotesScreen = ({
 
   // Helper: Append or edit section notes as a page in the document
   const applySectionApproval = (sectionHtml) => {
-    const pageNum = currentSectionIndex + 2; // cover/ToC is Page 1, section 1 is Page 2
-    const totalPages = toc.length + 1;
-
-    const newPageHtml = `
-      <div class="page" id="page-${pageNum}">
+    const titleToUse = topic || 'Speaker Notes';
+    
+    // Parse current documentHtml using DOMParser
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<body>${documentHtml}</body>`, 'text/html');
+    
+    const targetBlocks = doc.querySelectorAll(`.section-block[data-section-index="${currentSectionIndex}"]`);
+    
+    // Delete all existing blocks for this section
+    targetBlocks.forEach(b => b.remove());
+    
+    const blockContent = `
+      <div class="section-block" data-section-index="${currentSectionIndex}" style="margin-bottom: 24px;">
+        ${currentSectionIndex > 0 ? '<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0 20px 0;">' : ''}
         <div class="section-content">
           ${sectionHtml}
         </div>
-        <div class="page-footer">
-          <span>${toc[currentSectionIndex] || 'Speaker Notes'}</span>
-          <span>Page ${pageNum} of ${totalPages}</span>
-        </div>
       </div>
     `;
-
-    let updatedHtml = documentHtml;
+    
+    // Find all remaining section blocks to determine correct insertion position
+    const allBlocks = Array.from(doc.querySelectorAll('.section-block'));
+    const preBlocks = allBlocks.filter(b => parseInt(b.getAttribute('data-section-index') || '0', 10) < currentSectionIndex);
+    
+    if (preBlocks.length > 0) {
+      // Insert immediately after the preceding section block
+      const anchorBlock = preBlocks[preBlocks.length - 1];
+      anchorBlock.insertAdjacentHTML('afterend', blockContent);
+    } else {
+      const postBlocks = allBlocks.filter(b => parseInt(b.getAttribute('data-section-index') || '0', 10) > currentSectionIndex);
+      if (postBlocks.length > 0) {
+        // Insert immediately before the succeeding section block
+        const anchorBlock = postBlocks[0];
+        anchorBlock.insertAdjacentHTML('beforebegin', blockContent);
+      } else {
+        // No other blocks exist, append to page-2 container
+        const page2Container = doc.querySelector('#page-2 .section-content-container');
+        if (page2Container) {
+          page2Container.insertAdjacentHTML('beforeend', blockContent);
+        } else {
+          console.warn("Could not find page-2 content container to insert section!");
+        }
+      }
+    }
+    
+    const updatedHtml = doc.body.innerHTML;
+    setDocumentHtml(updatedHtml);
 
     if (stage === 'section_edit') {
-      // Safely replace the target page HTML inside documentHtml in-place using DOMParser
-      try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(`<body>${documentHtml}</body>`, 'text/html');
-        const targetPage = doc.getElementById(`page-${pageNum}`);
-        if (targetPage) {
-          targetPage.innerHTML = `
-            <div class="section-content">
-              ${sectionHtml}
-            </div>
-            <div class="page-footer">
-              <span>${toc[currentSectionIndex] || 'Speaker Notes'}</span>
-              <span>Page ${pageNum} of ${totalPages}</span>
-            </div>
-          `;
-        }
-        updatedHtml = doc.body.innerHTML;
-      } catch (e) {
-        console.error("DOMParser replace error, falling back:", e);
-      }
-      setDocumentHtml(updatedHtml);
       setStage('complete');
     } else {
-      // Normal brainstorming mode: client-side local append
-      updatedHtml = documentHtml + '\n' + newPageHtml;
-      setDocumentHtml(updatedHtml);
-      
-      // Advance section index
       const nextIdx = currentSectionIndex + 1;
       setCurrentSectionIndex(nextIdx);
-
-      // Check if we finished all sections
       if (nextIdx >= toc.length) {
         setStage('complete');
       }
     }
+    
     setProposedSectionContent(null);
     return updatedHtml;
   };
@@ -421,7 +854,8 @@ const SpeakerNotesScreen = ({
       topic,
       0,
       toc,
-      updatedHtml
+      updatedHtml,
+      "Send Table of Contents to Document"
     );
   };
 
@@ -432,7 +866,8 @@ const SpeakerNotesScreen = ({
       topic,
       currentSectionIndex,
       toc,
-      documentHtml
+      documentHtml,
+      "Show Speaker Notes"
     );
   };
 
@@ -447,7 +882,8 @@ const SpeakerNotesScreen = ({
         topic,
         currentSectionIndex,
         toc,
-        updatedHtml
+        updatedHtml,
+        "Send to Document"
       );
       return;
     }
@@ -461,7 +897,8 @@ const SpeakerNotesScreen = ({
         topic,
         nextIdx,
         toc,
-        updatedHtml
+        updatedHtml,
+        "Send to Document"
       );
     } else {
       handleSendMessage(
@@ -470,15 +907,13 @@ const SpeakerNotesScreen = ({
         topic,
         nextIdx,
         toc,
-        updatedHtml
+        updatedHtml,
+        "Send to Document"
       );
     }
   };
 
-  const handleRegenerateSection = () => {
-    const sectionName = toc[currentSectionIndex] || 'this section';
-    handleSendMessage(`Could you please revise or regenerate the draft speaker notes for "${sectionName}"? Please provide a different version or format.`);
-  };
+
 
   const handleStartSectionEdit = (index) => {
     if (index < 0 || index >= toc.length) return;
@@ -486,18 +921,23 @@ const SpeakerNotesScreen = ({
     setStage('section_edit');
     setProposedSectionContent(null);
     
-    // Extract current page HTML text content to show the AI
-    const pageNum = index + 2;
+    // Extract text content from all split blocks of this section to show the AI
     const iframeDoc = iframeRef.current?.contentDocument;
-    const targetPage = iframeDoc?.getElementById(`page-${pageNum}`);
-    const currentNotesText = targetPage ? targetPage.innerText || targetPage.textContent : '';
+    let currentNotesText = '';
+    if (iframeDoc) {
+      const targetBlocks = iframeDoc.querySelectorAll(`.section-block[data-section-index="${index}"]`);
+      const texts = Array.from(targetBlocks).map(b => b.innerText || b.textContent || '');
+      currentNotesText = texts.join('\n\n');
+    }
 
     handleSendMessage(
-      `Let's revise Section ${index + 1}: "${toc[index]}". Here is the current text in the document: "${currentNotesText.substring(0, 1000)}". What changes would you like to make?`,
+      `I would like to edit Section ${index + 1}: "${toc[index]}". Here is the current text: "${currentNotesText.substring(0, 1000)}". Ask me what changes I want to make first.`,
       'section_edit',
       topic,
       index,
-      toc
+      toc,
+      undefined,
+      `Edit Section ${index + 1}: "${toc[index]}"`
     );
   };
 
@@ -583,6 +1023,7 @@ const SpeakerNotesScreen = ({
     
     onSendToTakeaways(textContent);
   };
+
 
   return (
     <div className="animate-fade-in speaker-notes-layout" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
@@ -752,52 +1193,53 @@ const SpeakerNotesScreen = ({
           background: 'white',
           minHeight: 0
         }}>
-          {/* Progress Timeline Header */}
-          {toc.length > 0 && (
-            <div className="chat-timeline" style={{
-              background: '#f8fafc',
-              padding: '0.65rem 0.85rem',
-              borderRadius: '12px',
-              border: '1px solid var(--border-light)',
-              marginBottom: '0.75rem',
-              fontSize: '0.75rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-              maxHeight: '120px',
-              overflowY: 'auto'
-            }}>
-              <div style={{ fontWeight: 700, color: '#0f172a' }}>Brainstorming Progress:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
-                <span style={{ color: 'var(--success)', fontWeight: 600 }}>✓ Title Page</span>
-                {toc.map((section, idx) => {
-                  const isActive = idx === currentSectionIndex && (stage === 'section_brainstorm' || stage === 'section_edit');
-                  const isDone = (idx < currentSectionIndex && stage !== 'section_edit') || stage === 'complete';
-                  return (
-                    <span 
-                      key={idx}
-                      onClick={() => {
-                        if (stage === 'complete') {
-                          handleStartSectionEdit(idx);
-                        }
-                      }}
-                      style={{
-                        color: isDone ? 'var(--success)' : isActive ? 'var(--primary)' : 'var(--text-light)',
-                        fontWeight: isActive || isDone ? 600 : 400,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '2px',
-                        cursor: stage === 'complete' ? 'pointer' : 'default'
-                      }}
-                      title={stage === 'complete' ? 'Click to edit this section' : ''}
-                    >
-                      {isDone ? '✓' : isActive ? '●' : '○'} {idx + 1}. {section}
-                    </span>
-                  );
-                })}
-              </div>
+          {/* Focus & Progress Status Bar */}
+          <div className="chat-status-bar" style={{
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            padding: '0.75rem 1rem',
+            borderRadius: '12px',
+            border: '1px solid var(--border-light)',
+            marginBottom: '1rem',
+            fontSize: '0.8rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+          }}>
+            <style>{`
+              @keyframes pulse-focus {
+                0% { transform: scale(0.95); opacity: 0.8; }
+                50% { transform: scale(1.1); opacity: 1; }
+                100% { transform: scale(0.95); opacity: 0.8; }
+              }
+            `}</style>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: stage === 'complete' ? '#10b981' : '#6366f1',
+                boxShadow: stage === 'complete' ? '0 0 8px #10b981' : '0 0 8px #6366f1',
+                animation: stage === 'complete' ? 'none' : 'pulse-focus 2s infinite ease-in-out'
+              }}></span>
+              <span style={{ fontWeight: 600, color: '#475569' }}>Focus:</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>
+                {stage === 'title_brainstorm' && 'Title Brainstorming'}
+                {stage === 'topic_scope' && 'Defining Topic Scope'}
+                {stage === 'toc' && 'Table of Contents Outline'}
+                {stage === 'section_brainstorm' && `Brainstorming Section ${currentSectionIndex + 1}: ${toc[currentSectionIndex] || ''}`}
+                {stage === 'section_edit' && `Editing Section ${currentSectionIndex + 1}: ${toc[currentSectionIndex] || ''}`}
+                {stage === 'complete' && 'Presentation Completed! 🎉'}
+              </span>
             </div>
-          )}
+            {toc.length > 0 && (stage === 'section_brainstorm' || stage === 'section_edit' || stage === 'complete') && (
+              <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 600 }}>
+                Progress: {stage === 'complete' ? toc.length : currentSectionIndex + 1} / {toc.length}
+              </div>
+            )}
+          </div>
 
           {/* Chat Messages Log */}
           <div className="chat-messages-container" style={{
@@ -831,13 +1273,159 @@ const SpeakerNotesScreen = ({
                     lineHeight: 1.5,
                     boxShadow: 'var(--shadow-sm)'
                   }}>
-                    {msg.text.split('\n\n').map((paragraph, pIdx) => (
+                    {(msg.displayText || msg.text).split('\n\n').map((paragraph, pIdx) => (
                       <p key={pIdx} style={{ margin: pIdx > 0 ? '0.5rem 0 0 0' : 0 }}>
                         {paragraph.split('**').map((chunk, cIdx) => 
                           cIdx % 2 === 1 ? <strong key={cIdx}>{chunk}</strong> : chunk
                         )}
                       </p>
                     ))}
+
+                    {/* Inline Table of Contents Card */}
+                    {!isUser && msg.toc && msg.toc.length > 0 && msg.stage === 'toc' && (
+                      <div style={{
+                        marginTop: '0.75rem',
+                        background: 'white',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        padding: '0.85rem 1rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          📋 Proposed Table of Contents:
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {msg.toc.map((sec, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#334155' }}>
+                              <span style={{
+                                background: '#f1f5f9',
+                                color: '#475569',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.75rem'
+                              }}>{idx + 1}</span>
+                              <span style={{ fontWeight: 500 }}>{sec}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Inline Speaker Notes Draft Card */}
+                    {!isUser && msg.proposedSectionContent && (
+                      <div style={{
+                        marginTop: '0.75rem',
+                        background: 'white',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        padding: '1rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+                        color: 'var(--text-main)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          📝 Proposed Speaker Notes Draft:
+                        </div>
+                        <div 
+                          className="proposed-draft-html"
+                          dangerouslySetInnerHTML={{ __html: msg.proposedSectionContent }} 
+                          style={{ fontSize: '0.8rem', lineHeight: 1.5 }}
+                        />
+                        {/* Action buttons shown only if this message matches active stage and section */}
+                        {msg.stage === stage && msg.sectionIndex === currentSectionIndex && (stage === 'section_brainstorm' || stage === 'section_edit') && index === chatHistory.length - 1 && (
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApproveSection();
+                              }}
+                              disabled={isLoading}
+                              style={{
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.45rem 0.9rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                boxShadow: 'var(--shadow-sm)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              ✍️ Send to Document
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* Inline Suggested Option Buttons */}
+                    {index === chatHistory.length - 1 && msg.options && msg.options.length > 0 && !isLoading && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginTop: '10px',
+                        borderTop: '1px solid #e2e8f0',
+                        paddingTop: '8px'
+                      }}>
+                        {msg.options
+                          .filter(option => {
+                            const lowerOpt = option.toLowerCase();
+                            
+                            // 1. Filter out Regenerate Draft completely
+                            if (lowerOpt.includes('regenerate draft') || lowerOpt.includes('regenerate notes') || lowerOpt.trim() === 'regenerate') {
+                              return false;
+                            }
+                            
+                            // 2. Filter out Send to Document if the inline green button is already shown
+                            const hasInlineSendButton = msg.stage === stage && msg.sectionIndex === currentSectionIndex && (stage === 'section_brainstorm' || stage === 'section_edit') && index === chatHistory.length - 1 && msg.proposedSectionContent;
+                            if (hasInlineSendButton && (lowerOpt.includes('send to document') || lowerOpt.includes('sent to document') || lowerOpt.includes('approve section'))) {
+                              return false;
+                            }
+                            
+                            return true;
+                          })
+                          .map((option, optIdx) => (
+                            <button
+                              key={optIdx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOptionClick(option);
+                              }}
+                              style={{
+                                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.45rem 0.9rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                boxShadow: 'var(--shadow-sm)',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -871,209 +1459,7 @@ const SpeakerNotesScreen = ({
             <div ref={chatEndRef} />
           </div>
 
-          {/* Quick Contextual Action Buttons */}
-          <div className="chat-actions-container" style={{
-            display: 'flex',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-            marginBottom: '0.75rem'
-          }}>
-            {options && options.length > 0 ? (
-              <>
-                {options.map((option, idx) => (
-                  <button 
-                    key={idx}
-                    onClick={() => {
-                      const lowerOpt = option.toLowerCase();
-                      
-                      // Stage-specific routing for options
-                      if (stage === 'title_brainstorm') {
-                        if (
-                          lowerOpt.includes('suggest') || 
-                          lowerOpt.includes('more') || 
-                          lowerOpt.includes('other') || 
-                          lowerOpt.includes('different')
-                        ) {
-                          handleSendMessage(option);
-                        } else {
-                          // Plain title choice: approve it directly
-                          handleApproveTitle(option);
-                        }
-                      } else if (stage === 'toc') {
-                        if (
-                          lowerOpt.includes('send toc') || 
-                          lowerOpt.includes('approve toc') || 
-                          lowerOpt.includes('send to document') ||
-                          lowerOpt.includes('approve table of contents')
-                        ) {
-                          handleApproveToC();
-                        } else {
-                          handleSendMessage(option);
-                        }
-                      } else if (stage === 'section_brainstorm' || stage === 'section_edit') {
-                        if (lowerOpt.includes('show speaker notes') || lowerOpt.includes('show notes')) {
-                          handleShowSpeakerNotes();
-                        } else if (lowerOpt.includes('send to document') || lowerOpt.includes('sent to document')) {
-                          handleApproveSection();
-                        } else if (lowerOpt.includes('regenerate draft') || lowerOpt.includes('regenerate notes')) {
-                          handleRegenerateSection();
-                        } else {
-                          handleSendMessage(option);
-                        }
-                      } else if (stage === 'complete') {
-                        if (lowerOpt.startsWith('edit section')) {
-                          const match = option.match(/edit section\s+(\d+)/i);
-                          if (match && match[1]) {
-                            const secIdx = parseInt(match[1], 10) - 1;
-                            handleStartSectionEdit(secIdx);
-                          } else {
-                            handleSendMessage(option);
-                          }
-                        } else {
-                          handleSendMessage(option);
-                        }
-                      } else {
-                        // Fallback/Legacy matching
-                        if (lowerOpt.startsWith('approve title') || lowerOpt.includes('approve title:')) {
-                          const approvedTitle = option.includes(':') 
-                            ? option.split(':')[1].replace(/['"]+/g, '').trim() 
-                            : topic;
-                          handleApproveTitle(approvedTitle);
-                        } else {
-                          handleSendMessage(option);
-                        }
-                      }
-                    }}
-                    disabled={isLoading}
-                    style={{
-                      background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '20px',
-                      padding: '0.55rem 1.1rem',
-                      fontSize: '0.825rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: 'var(--shadow-sm)',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {option}
-                  </button>
-                ))}
-                
 
-              </>
-            ) : (
-              <>
-                {stage === 'toc' && toc.length > 0 && (
-                  <button 
-                    onClick={handleApproveToC}
-                    disabled={isLoading}
-                    style={{
-                      background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0.5rem 1rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    ✅ Send ToC to Document
-                  </button>
-                )}
-
-                {(stage === 'section_brainstorm' || stage === 'section_edit') && !proposedSectionContent && (
-                  <button 
-                    onClick={handleShowSpeakerNotes}
-                    disabled={isLoading}
-                    style={{
-                      background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0.5rem 1rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    🔍 Show Speaker Notes for this Section
-                  </button>
-                )}
-
-                {(stage === 'section_brainstorm' || stage === 'section_edit') && proposedSectionContent && (
-                  <>
-                    <button 
-                      onClick={handleApproveSection}
-                      disabled={isLoading}
-                      style={{
-                        background: 'linear-gradient(135deg, var(--success), #059669)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '0.5rem 1rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}
-                    >
-                      ✍️ Send to Document
-                    </button>
-                    <button 
-                      onClick={handleRegenerateSection}
-                      disabled={isLoading}
-                      style={{
-                        background: 'white',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-main)',
-                        borderRadius: '8px',
-                        padding: '0.5rem 1rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🔄 Regenerate Draft
-                    </button>
-                  </>
-                )}
-
-                {stage === 'complete' && toc.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-                    <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)' }}>
-                      Click any section in the timeline at the top to revise it, or choose below:
-                    </p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                      {toc.map((sec, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleStartSectionEdit(idx)}
-                          style={{
-                            background: '#f1f5f9',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: '12px',
-                            padding: '0.4rem 0.75rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            color: 'var(--text-muted)'
-                          }}
-                        >
-                          ✏️ Edit {idx + 1}: ${sec.substring(0, 15)}...
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
 
           {/* Chat Form Input */}
           <form 

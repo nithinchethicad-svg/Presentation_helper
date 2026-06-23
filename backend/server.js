@@ -50,6 +50,31 @@ let keyStatuses = apiKeys.map((key, idx) => ({
   lastChecked: null
 }));
 
+// In-memory cache map to store created context caches.
+// Key format: `${apiKeyIndex}_${contentHash}`
+// Value: { name: cacheName, expiresAt: Date }
+const contextCacheMap = new Map();
+
+// Helper to compute a SHA-256 hash of context string to use as cache key
+const crypto = require('crypto');
+const getContentHash = (systemInstruction, topic, toc, currentDocument) => {
+  const contentToHash = [
+    systemInstruction || '',
+    topic || '',
+    JSON.stringify(toc || []),
+    currentDocument || ''
+  ].join('|||');
+  return crypto.createHash('sha256').update(contentToHash).digest('hex');
+};
+
+// Minimum token limits for caching per family (2048 for Gemini 2.x, 4096 for Gemini 3.x)
+const getMinCacheTokens = (modelName) => {
+  if (modelName.startsWith('gemini-3')) {
+    return 4096;
+  }
+  return 2048; // Default to 2048 for Gemini 2.x or others
+};
+
 // Extract status code from error object or message string
 const getErrorStatus = (error) => {
   if (error.status) return error.status;
@@ -163,6 +188,16 @@ const MODEL_FALLBACK_CHAIN = [
 ];
 
 /**
+ * Model priority chain for lightweight tasks (like chat summarization).
+ */
+const LIGHT_MODEL_FALLBACK_CHAIN = [
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-3.5-flash'
+];
+
+/**
  * Helper function to determine if we should fall back to the next model in the chain.
  * Falls back on any temporary, quota, availability, or model-specific error,
  * but returns false for authentication errors (401 / 403) which cannot be solved by model switching.
@@ -176,7 +211,7 @@ const isFallbackTrigger = (error) => {
  * Core stateless content generation with multi-model fallback and key rotation.
  * Iterates through model priority chain and rotates through API keys.
  */
-async function generateContentWithFallback(contents, systemInstruction, extraConfig = {}) {
+async function generateContentWithFallback(contents, systemInstruction, extraConfig = {}, modelChain = MODEL_FALLBACK_CHAIN) {
   if (apiKeys.length === 0) {
     const errorMsg = "No Gemini API keys configured. Please add keys to your backend/.env file.";
     logEvent('error', errorMsg);
@@ -186,14 +221,29 @@ async function generateContentWithFallback(contents, systemInstruction, extraCon
   const errors = [];
 
   // Loop through model families in priority chain
-  for (const modelName of MODEL_FALLBACK_CHAIN) {
+  for (const modelName of modelChain) {
     let attempts = 0;
     const maxAttempts = apiKeys.length;
     let modelHasWorkableKeys = false;
 
+    // Check if we have a cache hit for this modelName and hash
+    let pinnedKeyIndex = null;
+    let cachedContentName = null;
+    if (extraConfig.cachedContentHash) {
+      for (let i = 0; i < apiKeys.length; i++) {
+        const cacheKey = `${modelName}_${i}_${extraConfig.cachedContentHash}`;
+        const cacheEntry = contextCacheMap.get(cacheKey);
+        if (cacheEntry && cacheEntry.expiresAt > Date.now()) {
+          pinnedKeyIndex = i;
+          cachedContentName = cacheEntry.name;
+          break;
+        }
+      }
+    }
+
     // Loop through keys for the current model
     while (attempts < maxAttempts) {
-      const keyIndex = (currentKeyIndex + attempts) % apiKeys.length;
+      const keyIndex = (pinnedKeyIndex !== null && attempts === 0) ? pinnedKeyIndex : (currentKeyIndex + attempts) % apiKeys.length;
       const apiKey = apiKeys[keyIndex];
       const maskedKey = apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'undefined';
       
@@ -214,22 +264,107 @@ async function generateContentWithFallback(contents, systemInstruction, extraCon
         promptSnippet
       });
 
+      // Manage Context Cache
+      let cacheToUse = null;
+      if (extraConfig.cachedContentHash) {
+        if (pinnedKeyIndex === keyIndex) {
+          cacheToUse = cachedContentName;
+          logEvent('info', `Cache hit for model ${modelName} using Key Index ${keyIndex + 1}: ${cacheToUse}`);
+        } else {
+          // Cache miss for this key index: try to create a new cache
+          const cacheKey = `${modelName}_${keyIndex}_${extraConfig.cachedContentHash}`;
+          try {
+            const tempAi = new GoogleGenAI({ apiKey });
+            const cacheContents = [
+              {
+                role: 'user',
+                parts: [{ text: `Presentation Context:
+Topic: ${extraConfig.topic || 'Not set yet'}
+ToC: ${JSON.stringify(extraConfig.toc || [])}
+Current Document:
+${extraConfig.currentDocument || '(Empty Document)'}` }]
+              },
+              {
+                role: 'model',
+                parts: [{ text: "Understood. I have cached this presentation context." }]
+              }
+            ];
+
+            // Count tokens of the content to check model caching thresholds
+            const tokenResult = await tempAi.models.countTokens({
+              model: modelName,
+              contents: cacheContents,
+              config: { systemInstruction }
+            });
+            const totalTokens = tokenResult.totalTokens;
+            const minTokens = getMinCacheTokens(modelName);
+
+            if (totalTokens >= minTokens) {
+              logEvent('info', `Creating context cache for Key Index ${keyIndex + 1}. Token count ${totalTokens} >= threshold ${minTokens} for ${modelName}`);
+              const cache = await tempAi.caches.create({
+                model: modelName,
+                config: {
+                  contents: cacheContents,
+                  systemInstruction,
+                  ttl: '600s' // 10 minutes TTL
+                }
+              });
+              contextCacheMap.set(cacheKey, {
+                name: cache.name,
+                expiresAt: Date.now() + 600 * 1000
+              });
+              cacheToUse = cache.name;
+              logEvent('info', `Successfully created context cache on Key Index ${keyIndex + 1}: ${cache.name}`);
+            } else {
+              logEvent('info', `Bypassing context cache for Key Index ${keyIndex + 1}: token count ${totalTokens} is less than threshold ${minTokens} for ${modelName}`);
+            }
+          } catch (cacheErr) {
+            logEvent('warn', `Failed to create context cache for ${modelName} using Key ${keyIndex + 1}: ${cacheErr.message}`);
+          }
+        }
+      }
+
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: contents,
-          config: {
-            ...(systemInstruction ? { systemInstruction } : {}),
-            ...extraConfig
-          }
-        });
+        let responseText;
+
+        if (cacheToUse) {
+          // If we use a cache, we must NOT pass systemInstruction in config
+          const { cachedContentHash, topic, toc, currentDocument, ...restConfig } = extraConfig;
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contents,
+            config: {
+              cachedContent: cacheToUse,
+              ...restConfig
+            }
+          });
+          responseText = response.text;
+        } else {
+          // Standard call without cache
+          const { cachedContentHash, topic, toc, currentDocument, ...restConfig } = extraConfig;
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: contents,
+            config: {
+              ...(systemInstruction ? { systemInstruction } : {}),
+              ...restConfig
+            }
+          });
+          responseText = response.text;
+        }
 
         // Update current index to this successful key
         currentKeyIndex = keyIndex;
         logEvent('info', `Success! Model ${modelName} responded using Key Index ${keyIndex + 1}/${apiKeys.length}`);
-        return response.text;
+        return responseText;
       } catch (error) {
+        // If we had a cache to use, clear it since it might be invalid/expired on the server
+        if (extraConfig.cachedContentHash) {
+          const cacheKey = `${modelName}_${keyIndex}_${extraConfig.cachedContentHash}`;
+          contextCacheMap.delete(cacheKey);
+        }
+
         const errStatus = getErrorStatus(error);
         const errMsg = error.message || '';
         
@@ -285,7 +420,7 @@ async function generateContentWithRotation(prompt, systemInstruction, extraConfi
  * Executes a stateless chat turn, appending the user prompt to the history,
  * calling the fallback router, and appending the model response.
  */
-async function executeStatelessChatTurn(history, newPrompt, systemInstruction, responseMimeType = "text/plain") {
+async function executeStatelessChatTurn(history, newPrompt, systemInstruction, extraConfig = {}) {
   const updatedHistory = [...history];
   if (newPrompt) {
     updatedHistory.push({
@@ -294,7 +429,7 @@ async function executeStatelessChatTurn(history, newPrompt, systemInstruction, r
     });
   }
   
-  const generatedText = await generateContentWithFallback(updatedHistory, systemInstruction, { responseMimeType });
+  const generatedText = await generateContentWithFallback(updatedHistory, systemInstruction, extraConfig);
   
   updatedHistory.push({
     role: 'model',
@@ -347,14 +482,47 @@ function cleanHtmlResponse(text) {
 function cleanAndParseJson(text) {
   if (!text) return null;
   let clean = text.trim();
-  if (clean.startsWith("```json")) {
-    clean = clean.substring(7);
-  } else if (clean.startsWith("```")) {
-    clean = clean.substring(3);
+
+  // Find first occurrence of { or [
+  const firstBrace = clean.indexOf('{');
+  const firstBracket = clean.indexOf('[');
+  
+  let startIdx = -1;
+  let endChar = '';
+  
+  if (firstBrace !== -1 && firstBracket !== -1) {
+    if (firstBrace < firstBracket) {
+      startIdx = firstBrace;
+      endChar = '}';
+    } else {
+      startIdx = firstBracket;
+      endChar = ']';
+    }
+  } else if (firstBrace !== -1) {
+    startIdx = firstBrace;
+    endChar = '}';
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endChar = ']';
   }
-  if (clean.endsWith("```")) {
-    clean = clean.substring(0, clean.length - 3);
+
+  if (startIdx !== -1) {
+    const endIdx = clean.lastIndexOf(endChar);
+    if (endIdx !== -1 && endIdx > startIdx) {
+      clean = clean.substring(startIdx, endIdx + 1);
+    }
+  } else {
+    // Fallback if no brace/bracket found
+    if (clean.startsWith("```json")) {
+      clean = clean.substring(7);
+    } else if (clean.startsWith("```")) {
+      clean = clean.substring(3);
+    }
+    if (clean.endsWith("```")) {
+      clean = clean.substring(0, clean.length - 3);
+    }
   }
+
   return JSON.parse(clean.trim());
 }
 
@@ -904,11 +1072,54 @@ app.get('/api/logs', (req, res) => {
 });
 
 /**
+ * Endpoint to incrementally summarize completed chats using a lightweight model chain.
+ */
+app.post('/api/summarize-chats', async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Missing messages array.' });
+    }
+
+    if (messages.length === 0) {
+      return res.json({ summary: '' });
+    }
+
+    logEvent('info', `Received chat summarization request. Messages to summarize: ${messages.length}`);
+
+    // Convert messages to Gemini format
+    const contents = messages.map(m => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }]
+    }));
+
+    const systemInstruction = 
+      "You are a helpful assistant. Summarize the following brainstorming chat history between the user and the AI assistant regarding a presentation. Be concise and capture only key decisions made, approved titles, chosen themes, or specific details for slides. Keep the summary under 100 words.";
+
+    const summaryText = await generateContentWithFallback(
+      contents,
+      systemInstruction,
+      { responseMimeType: "text/plain" },
+      LIGHT_MODEL_FALLBACK_CHAIN
+    );
+
+    res.json({ summary: summaryText.trim() });
+  } catch (error) {
+    logEvent('error', `Chat summarization failed: ${error.message}`);
+    const status = error.status || 500;
+    res.status(status).json({ 
+      error: status === 429 ? 'rate_limit_exceeded' : 'error', 
+      message: error.message || 'An error occurred during summarization.' 
+    });
+  }
+});
+
+/**
  * Interactive Speaker Notes Brainstorm Chat Endpoint
  */
 app.post('/api/chat-speaker-notes', async (req, res) => {
   try {
-    const { messages, currentDocument, toc, currentSectionIndex, stage, topic } = req.body;
+    const { messages, currentDocument, toc, currentSectionIndex, stage, topic, chatSummary } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Missing messages array.' });
@@ -922,6 +1133,8 @@ app.post('/api/chat-speaker-notes', async (req, res) => {
     }));
 
     const lastMessage = messages[messages.length - 1]?.text || '';
+
+    const chatSummaryContext = chatSummary ? `\n\nSummary of Previous Sections and Brainstorming (Context):\n-------------------\n${chatSummary}\n-------------------\n` : '';
 
     const systemInstruction = 
       `You are the AI Presentation Assistant, an expert presentation coach and speaker notes author. Your goal is to guide the user step-by-step through brainstorming and creating a complete, high-quality speaker notes document.
@@ -945,12 +1158,13 @@ You operate in a sequence of stages:
    - Enforce that you MUST discuss the sections one-by-one, in the exact order defined in the ToC. Focus ONLY on brainstorming ideas for the active section (Section Index ${currentSectionIndex}: "${toc[currentSectionIndex] || ''}").
    - Chat, suggest points, and ask questions. Do NOT generate the detailed draft notes (proposedSectionContent) yet.
    - Propose options like: ["Show Speaker Notes for this Section", "Suggest section ideas"].
-   - When the user prompts to generate the draft, return the notes draft in "proposedSectionContent" and propose options like: ["Send to Document", "Regenerate Draft"].
+   - When the user prompts to generate the draft, return the notes draft in "proposedSectionContent" and propose options like: ["Send to Document"].
    - Once committed (action = "approve_section"), move to the next section or transition nextStage to "complete".
 5. Section Editing ("section_edit"):
    - You are revising the notes for Section Index ${currentSectionIndex}: "${toc[currentSectionIndex] || ''}".
-   - Chat with the user about edits. Do NOT generate the revised draft notes until the user clicks "Show Speaker Notes for this Section".
-   - When requested, output the updated draft in "proposedSectionContent" and offer: ["Send to Document", "Regenerate Draft"].
+   - CRITICAL: You must NOT assume what the user wants to change, and you must NOT generate the revised draft notes (do NOT populate 'proposedSectionContent') immediately.
+   - First, ask the user what specific changes, additions, or removals they wish to make to this section. Propose simple options like ["Add more examples", "Make it shorter", "Explain in detail"].
+   - Only after understanding their intent or receiving instructions should you generate the revised draft (populating 'proposedSectionContent') and offer: ["Send to Document"].
    - Once committed (action = "approve_section"), return nextStage to "complete".
 6. Completion ("complete"):
    - The document is finished! Congratulate the user.
@@ -967,6 +1181,7 @@ Current Document Content (Ground Truth / Background Context):
 -------------------
 ${currentDocument || '(Empty Document)'}
 -------------------
+${chatSummaryContext}
  
 You must ALWAYS respond with a JSON object. The JSON object must match this schema:
 {
@@ -983,20 +1198,36 @@ You must ALWAYS respond with a JSON object. The JSON object must match this sche
 Contextual Guidelines:
 - Document Awareness & Context: The 'Current Document Content' above contains the actual text/content that has already been generated, approved, and added to the presentation document. You must treat this document content as background context and the absolute ground truth. You must remain fully aware of what is already in the document, so that when the user refers to it, you understand it perfectly.
 - Section Name Alignment: The section names used in your proposed section content headers (e.g. <h2>Section Name</h2> in 'proposedSectionContent') MUST match the section names defined in the Table of Contents ('toc') and the document layout exactly. Do not invent new section names or modify them.
+- Detailed & Explanatory Drafts: The proposed speaker notes (in 'proposedSectionContent') must not be too concise. They should be highly descriptive, explanatory, and thorough, providing comprehensive talking points and details for the presenter.
 - Strict Flow Execution: You must strictly follow the document structure and flows that the user has approved and committed to the document. Do not drift from the ideas and outlines established in the Table of Contents.
 - Persistent Context: You have access to the full chat log and the entire generated document. Always use this information to maintain perfect context.
 - Keep your replies under 150 words. Be focused and helpful.
 - Return ONLY the raw JSON object. Do not wrap in markdown code blocks.`;
+
+    // Compute hash for context caching
+    const cachedContentHash = getContentHash(systemInstruction, topic, toc, currentDocument);
 
     // Execute stateless chat turn using fallback router
     const result = await executeStatelessChatTurn(
       history,
       lastMessage,
       systemInstruction,
-      "application/json"
+      {
+        responseMimeType: "application/json",
+        cachedContentHash,
+        topic,
+        toc,
+        currentDocument
+      }
     );
 
-    let parsedResponse = cleanAndParseJson(result.text);
+    let parsedResponse;
+    try {
+      parsedResponse = cleanAndParseJson(result.text);
+    } catch (parseError) {
+      logEvent('error', `Failed to parse model response. Raw text: "${result.text}"`, { error: parseError.message });
+      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+    }
 
     if (!parsedResponse) {
       throw new Error("Failed to parse AI response as JSON.");
@@ -1132,7 +1363,13 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "wordBudget", "layoutStylingDetails"}]}].`;
 
     let blueprintText = await generateContentWithRotation(blueprintPrompt, blueprintSystemInstruction, { responseMimeType: "application/json" });
-    let blueprintJSON = cleanAndParseJson(blueprintText);
+    let blueprintJSON;
+    try {
+      blueprintJSON = cleanAndParseJson(blueprintText);
+    } catch (parseError) {
+      logEvent('error', `Failed to parse blueprint JSON. Raw text: "${blueprintText}"`, { error: parseError.message });
+      throw new Error(`Failed to parse layout blueprint JSON: ${parseError.message}`);
+    }
 
     // ── STAGE 2: HTML Generation Prompts ───────────────────────────────────
     logEvent('info', 'Executing Stage 2: Drafting HTML summary...');
