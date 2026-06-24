@@ -4,6 +4,8 @@ const multer = require('multer');
 const dotenv = require('dotenv');
 const officeParser = require('officeparser');
 const { GoogleGenAI } = require('@google/genai');
+const path = require('path');
+const { harvestMedia } = require('./utils/mediaHarvester');
 
 // Load environment variables
 dotenv.config();
@@ -14,6 +16,9 @@ const PORT = process.env.PORT || 5000;
 // Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json());
+
+// Serve extracted presentation images statically
+app.use('/extracted_media', express.static(path.join(__dirname, 'public/extracted_media')));
 
 // Set up Multer for in-memory file uploads
 const upload = multer({
@@ -245,7 +250,7 @@ async function generateContentWithFallback(contents, systemInstruction, extraCon
   // Loop through model families in priority chain
   for (const modelName of modelChain) {
     let attempts = 0;
-    const maxAttempts = apiKeys.length;
+    const maxAttempts = Math.max(5, apiKeys.length * 2);
     let modelHasWorkableKeys = false;
 
     // Check if we have a cache hit for this modelName and hash
@@ -413,6 +418,12 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
 
         errors.push({ model: modelName, keyIndex: keyIndex + 1, status: errStatus, message: errMsg });
         
+        if (errStatus === 429) {
+          const delayMs = 1500;
+          logEvent('info', `Rate limit hit (429). Sleeping for ${delayMs}ms before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
         // If this error is a fallback trigger, we continue model rotation
         if (isFallbackTrigger(error)) {
           modelHasWorkableKeys = true; 
@@ -462,7 +473,7 @@ async function generateContentStreamWithFallback(contents, systemInstruction, ex
   // Loop through model families in priority chain
   for (const modelName of modelChain) {
     let attempts = 0;
-    const maxAttempts = apiKeys.length;
+    const maxAttempts = Math.max(5, apiKeys.length * 2);
     let modelHasWorkableKeys = false;
 
     // Check if we have a cache hit for this modelName and hash
@@ -614,6 +625,12 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
 
         errors.push({ model: modelName, keyIndex: keyIndex + 1, status: errStatus, message: errMsg });
         
+        if (errStatus === 429) {
+          const delayMs = 1500;
+          logEvent('info', `Rate limit hit (429). Sleeping for ${delayMs}ms before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
         // If this error is a fallback trigger, we continue model rotation
         if (isFallbackTrigger(error)) {
           modelHasWorkableKeys = true; 
@@ -938,6 +955,93 @@ function stripPrintUnfriendlyStyles(html) {
       border-radius: 4px !important;
       background-color: white !important;
     }
+  }
+
+  /* === IMAGE & CHART LAYOUT MATRIX === */
+  .img-hero-landscape {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 16px 0 !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .img-hero-split {
+    float: left !important;
+    width: 48% !important;
+    max-width: 48% !important;
+    height: auto !important;
+    margin: 8px 16px 16px 0 !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .img-float-wide {
+    float: right !important;
+    width: 45% !important;
+    max-width: 45% !important;
+    height: auto !important;
+    margin: 8px 0 16px 16px !important;
+    border-radius: 6px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .img-float-compact {
+    float: right !important;
+    width: 30% !important;
+    max-width: 30% !important;
+    height: auto !important;
+    margin: 6px 0 12px 12px !important;
+    border-radius: 4px !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .img-inline-icon {
+    display: inline-block !important;
+    height: 24px !important;
+    width: auto !important;
+    vertical-align: middle !important;
+    margin-right: 8px !important;
+    border: none !important;
+  }
+  .image-caption {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    color: #555555 !important;
+    margin-top: 4px !important;
+    margin-bottom: 12px !important;
+    text-align: center !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Sibling selectors to stack and wrap captions perfectly with floated images */
+  .img-hero-split + .image-caption {
+    float: left !important;
+    width: 48% !important;
+    clear: left !important;
+    margin: 4px 16px 16px 0 !important;
+    text-align: center !important;
+  }
+  .img-float-wide + .image-caption {
+    float: right !important;
+    width: 45% !important;
+    clear: right !important;
+    margin: 4px 0 16px 16px !important;
+    text-align: center !important;
+  }
+  .img-float-compact + .image-caption {
+    float: right !important;
+    width: 30% !important;
+    clear: right !important;
+    margin: 4px 0 12px 12px !important;
+    text-align: center !important;
   }
 
   /* PRINT OVERRIDES */
@@ -1595,6 +1699,20 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const fileTexts = await Promise.all(textExtractionPromises);
     const combinedSourceText = fileTexts.join('\n\n');
 
+    // Run the programmatic media harvester to extract, map, and size embedded images/charts
+    logEvent('info', 'Harvesting and mapping embedded media from uploaded files...');
+    const mediaOutputDir = path.join(__dirname, 'public/extracted_media');
+    const mediaHarvestPromises = files.map(file => {
+      return harvestMedia(file.buffer, file.originalname, mediaOutputDir)
+        .catch(err => {
+          logEvent('error', `Error harvesting media from ${file.originalname}: ${err.message}`);
+          return [];
+        });
+    });
+    const harvestedMediaResults = await Promise.all(mediaHarvestPromises);
+    const allExtractedImages = harvestedMediaResults.flat();
+    logEvent('info', `Successfully harvested ${allExtractedImages.length} images/charts from uploaded files.`);
+
     const detailInstructions = {
       'Brief': 'Produce a HIGH-IMPACT, CONDENSED summary. Focus EXCLUSIVELY on the absolute core highlights, main thesis, and 3-5 key takeaways per section.',
       'Moderate': 'Produce a BALANCED, STANDARD summary. Cover all primary sections, speaker insights, and main slide concepts.',
@@ -1662,11 +1780,14 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const blueprintSystemInstruction = 
       "You are an expert layout designer. Design a JSON array of page plan objects. Total words per page <= 250. Return ONLY raw JSON. " +
       "CRITICAL: You MUST combine multiple short slides/sections onto a single page plan to avoid large empty spaces. A single A4 page must be densely packed and can contain multiple sections. Do not artificially force 1 slide per page if they are short. You must preserve the text of all headers exactly as they appear in the source files. " +
+      "CRITICAL IMAGES & CHARTS PLACEMENT: You are provided with a list of extracted images and charts. Your task is to place them contextually under the corresponding header section by adding an element of 'elementType': 'image'. Do NOT place the same image multiple times. If a slide or section has no relevant image in the list, do not add one. " +
       (bStrictFileContentOnly 
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, external history, or context not written in the files. If it is not in the text, it does not exist."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "wordBudget", "layoutStylingDetails"}]}].`;
+    const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. 
+    Extracted Images available for placement: ${JSON.stringify(allExtractedImages)}.
+    JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "imageId", "resolvedClass", "caption", "wordBudget", "layoutStylingDetails"}]}]. ElementType can be 'text' or 'image'. For 'image' elements, you must populate 'imageId', 'resolvedClass', and 'caption' from the provided extracted images list.`;
 
     let blueprintText = await generateContentWithRotation(
       blueprintPrompt,
@@ -1702,37 +1823,51 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
       "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
       "PAGE DENSITY & GAPS: Avoid leaving large empty spaces at the bottom of pages. Pack elements efficiently. " +
+      "IMAGE RENDER CONSTRAINTS: If a section in the blueprint has \"elementType\": \"image\", you MUST render a clean <img> tag using the provided imageId in its src and the resolvedClass as its class: <img class=\"[resolvedClass]\" src=\"/extracted_media/[imageId]\" alt=\"[caption]\" />. If there is a caption, place it neatly below the image in a small div: <div class=\"image-caption\">[caption]</div>. Text wrapping must only wrap around the image itself, not the caption. " +
       "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the blueprint. Do NOT invent new headers or rename sections. " +
       (bStrictFileContentOnly
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const pagePromises = blueprintJSON.map(async (pagePlan, index) => {
-      const pagePrompt = `Task: Generate a single standalone A4 HTML page (wrapped in <div class="page">...</div>) for the following page plan from the blueprint:
+    // Render pages in batches to respect Free Tier API concurrency limits and prevent rate limit errors
+    const pageHtmls = [];
+    const concurrencyLimit = 3;
+    logEvent('info', `Rendering ${blueprintJSON.length} pages in batches of ${concurrencyLimit}...`);
+    
+    for (let i = 0; i < blueprintJSON.length; i += concurrencyLimit) {
+      const batch = blueprintJSON.slice(i, i + concurrencyLimit);
+      const batchIndex = Math.floor(i / concurrencyLimit) + 1;
+      const totalBatches = Math.ceil(blueprintJSON.length / concurrencyLimit);
+      logEvent('info', `Processing Stage 2 batch ${batchIndex}/${totalBatches} (${batch.length} pages)...`);
       
-      Page Plan: ${JSON.stringify(pagePlan)}
-      
-      Theme styling rules: ${vibeInstruction}
-      Color palette rules: ${colorInstruction}
-      
-      Specific Page Requirements:
-      - Enforce A4 dimensions with narrow margins (exactly 12mm padding).
-      - Use fancy Google Fonts on headings.
-      - Enforce the strict class-based font size hierarchy.
-      - Place the exact page number placeholder: <div class="page-number">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div> in the bottom right corner.
-      - Ensure print-safe styles, no hover, no overflow.
-      - Return ONLY the raw HTML code for this single page. Do NOT add markdown code fences (like \`\`\`html) and do NOT add any introductory or concluding conversational text.`;
+      const batchPromises = batch.map(async (pagePlan) => {
+        const pagePrompt = `Task: Generate a single standalone A4 HTML page (wrapped in <div class="page">...</div>) for the following page plan from the blueprint:
+        
+        Page Plan: ${JSON.stringify(pagePlan)}
+        
+        Theme styling rules: ${vibeInstruction}
+        Color palette rules: ${colorInstruction}
+        
+        Specific Page Requirements:
+        - Enforce A4 dimensions with narrow margins (exactly 12mm padding).
+        - Use fancy Google Fonts on headings.
+        - Enforce the strict class-based font size hierarchy.
+        - Place the exact page number placeholder: <div class="page-number">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div> in the bottom right corner.
+        - Ensure print-safe styles, no hover, no overflow.
+        - Return ONLY the raw HTML code for this single page. Do NOT add markdown code fences (like \`\`\`html) and do NOT add any introductory or concluding conversational text.`;
 
-      return generateContentWithRotation(
-        pagePrompt,
-        htmlSystemInstruction,
-        {},
-        CREATIVE_LAYOUT_MODEL_CHAIN
-      );
-    });
-
-    const pageHtmls = await Promise.all(pagePromises);
-    logEvent('info', `Successfully drafted all ${pageHtmls.length} HTML pages in parallel.`);
+        return generateContentWithRotation(
+          pagePrompt,
+          htmlSystemInstruction,
+          {},
+          CREATIVE_LAYOUT_MODEL_CHAIN
+        );
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      pageHtmls.push(...batchResults);
+    }
+    logEvent('info', `Successfully drafted all ${pageHtmls.length} HTML pages.`);
 
     // Compile pages and inject dynamic page numbers
     const compiledHtmlDraft = pageHtmls.map((pageHtml, index) => {

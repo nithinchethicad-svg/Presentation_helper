@@ -30,3 +30,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Extracted media from uploads
+backend/public/extracted_media/
+backend/public/extracted_media_test/
