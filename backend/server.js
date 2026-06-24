@@ -22,19 +22,21 @@ const upload = multer({
 });
 
 // Configure Gemini API keys for rotation
-const apiKeys = [
-  process.env.GEMINI_API_KEY_1,
-  process.env.GEMINI_API_KEY_2,
-  process.env.GEMINI_API_KEY_3,
-  process.env.GEMINI_API_KEY_4,
-  process.env.GEMINI_API_KEY_5,
-  process.env.GEMINI_API_KEY_6,
-  process.env.GEMINI_API_KEY_7
-].filter(key => !!key); // Keep only non-empty keys
-
-// Fallback to GEMINI_API_KEY if no numbered keys are defined
-if (apiKeys.length === 0 && process.env.GEMINI_API_KEY) {
+// If the primary single key GEMINI_API_KEY is provided, we prioritize it and phase out the 7-key rotation system.
+// This allows the user to easily transition to a single paid-tier key without having to delete the 7 free-tier keys.
+let apiKeys = [];
+if (process.env.GEMINI_API_KEY) {
   apiKeys.push(process.env.GEMINI_API_KEY);
+} else {
+  apiKeys = [
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_4,
+    process.env.GEMINI_API_KEY_5,
+    process.env.GEMINI_API_KEY_6,
+    process.env.GEMINI_API_KEY_7
+  ].filter(key => !!key); // Keep only non-empty keys
 }
 
 // Current active key index
@@ -54,6 +56,9 @@ let keyStatuses = apiKeys.map((key, idx) => ({
 // Key format: `${apiKeyIndex}_${contentHash}`
 // Value: { name: cacheName, expiresAt: Date }
 const contextCacheMap = new Map();
+
+// Set of keys (identified by `${modelName}_${keyIndex}`) that do not support context caching (e.g. Free Tier)
+const keysWithoutCacheQuota = new Set();
 
 // Helper to compute a SHA-256 hash of context string to use as cache key
 const crypto = require('crypto');
@@ -290,52 +295,67 @@ async function generateContentWithFallback(contents, systemInstruction, extraCon
         } else {
           // Cache miss for this key index: try to create a new cache
           const cacheKey = `${modelName}_${keyIndex}_${extraConfig.cachedContentHash}`;
-          try {
-            const tempAi = new GoogleGenAI({ apiKey });
-            const cacheContents = [
-              {
-                role: 'user',
-                parts: [{ text: `Presentation Context:
+          const disableKey = `${modelName}_${keyIndex}`;
+
+          if (keysWithoutCacheQuota.has(disableKey)) {
+            logEvent('info', `Bypassing context cache creation for Key Index ${keyIndex + 1} (known Free Tier key with no cache quota for ${modelName})`);
+          } else {
+            try {
+              const tempAi = new GoogleGenAI({ apiKey });
+              const cacheContents = [
+                {
+                  role: 'user',
+                  parts: [{ text: `Presentation Context:
 Topic: ${extraConfig.topic || 'Not set yet'}
 ToC: ${JSON.stringify(extraConfig.toc || [])}
 Current Document:
 ${extraConfig.currentDocument || '(Empty Document)'}` }]
-              },
-              {
-                role: 'model',
-                parts: [{ text: "Understood. I have cached this presentation context." }]
-              }
-            ];
-
-            // Count tokens of the content to check model caching thresholds
-            const tokenResult = await tempAi.models.countTokens({
-              model: modelName,
-              contents: cacheContents,
-              config: { systemInstruction }
-            });
-            const totalTokens = tokenResult.totalTokens;
-            const minTokens = getMinCacheTokens(modelName);
-
-            if (totalTokens >= minTokens) {
-              logEvent('info', `Creating context cache for Key Index ${keyIndex + 1}. Token count ${totalTokens} >= threshold ${minTokens} for ${modelName}`);
-              const cache = await tempAi.caches.create({
-                model: modelName,
-                config: {
-                  contents: cacheContents,
-                  ttl: '600s' // 10 minutes TTL
+                },
+                {
+                  role: 'model',
+                  parts: [{ text: "Understood. I have cached this presentation context." }]
                 }
+              ];
+
+              // Count tokens of the content to check model caching thresholds
+              const tokenResult = await tempAi.models.countTokens({
+                model: modelName,
+                contents: cacheContents
               });
-              contextCacheMap.set(cacheKey, {
-                name: cache.name,
-                expiresAt: Date.now() + 600 * 1000
-              });
-              cacheToUse = cache.name;
-              logEvent('info', `Successfully created context cache on Key Index ${keyIndex + 1}: ${cache.name}`);
-            } else {
-              logEvent('info', `Bypassing context cache for Key Index ${keyIndex + 1}: token count ${totalTokens} is less than threshold ${minTokens} for ${modelName}`);
+              const totalTokens = tokenResult.totalTokens;
+              const minTokens = getMinCacheTokens(modelName);
+
+              if (totalTokens >= minTokens) {
+                logEvent('info', `Creating context cache for Key Index ${keyIndex + 1}. Token count ${totalTokens} >= threshold ${minTokens} for ${modelName}`);
+                const cache = await tempAi.caches.create({
+                  model: modelName,
+                  config: {
+                    contents: cacheContents,
+                    ttl: '600s' // 10 minutes TTL
+                  }
+                });
+                contextCacheMap.set(cacheKey, {
+                  name: cache.name,
+                  expiresAt: Date.now() + 600 * 1000
+                });
+                cacheToUse = cache.name;
+                logEvent('info', `Successfully created context cache on Key Index ${keyIndex + 1}: ${cache.name}`);
+              } else {
+                logEvent('info', `Bypassing context cache for Key Index ${keyIndex + 1}: token count ${totalTokens} is less than threshold ${minTokens} for ${modelName}`);
+              }
+            } catch (cacheErr) {
+              const errMsg = cacheErr.message || '';
+              logEvent('warn', `Failed to create context cache for ${modelName} using Key ${keyIndex + 1}: ${errMsg}`);
+              
+              if (errMsg.includes('limit=0') || 
+                  errMsg.includes('TotalCachedContentStorageTokens') || 
+                  errMsg.includes('limit exceeded') || 
+                  errMsg.includes('Free tier') ||
+                  errMsg.includes('Community tier')) {
+                keysWithoutCacheQuota.add(disableKey);
+                logEvent('info', `Key Index ${keyIndex + 1} identified as Free Tier (no cache storage quota) for ${modelName}. Added to bypass list.`);
+              }
             }
-          } catch (cacheErr) {
-            logEvent('warn', `Failed to create context cache for ${modelName} using Key ${keyIndex + 1}: ${cacheErr.message}`);
           }
         }
       }
@@ -1406,13 +1426,14 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       throw new Error(`Failed to parse layout blueprint JSON: ${parseError.message}`);
     }
 
-    // ── STAGE 2: HTML Generation Prompts ───────────────────────────────────
-    logEvent('info', 'Executing Stage 2: Drafting HTML summary...');
+    // ── STAGE 2: HTML Generation Prompts (Parallel) ────────────────────────
+    logEvent('info', `Executing Stage 2: Drafting HTML summary in parallel across ${blueprintJSON.length} pages...`);
 
     const htmlSystemInstruction = 
       "You are an expert content designer and summary publisher. " +
-      "Create standalone HTML/CSS notes strictly following the blueprint. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
-      "CRITICAL TYPOGRAPHY & HIERARCHY: You must import any required Google Fonts in the HTML <head> using <link rel=\"stylesheet\" href=\"...\">. Proactively apply the theme's fancy/decorative Google Fonts to all main titles, sub-titles, section titles, headers, and sub-headers (H1, H2, H3, H4, etc.) to make them look visually striking, premium, and themed. Keep body text highly readable (e.g. using Lato, Inter, or Open Sans). Do NOT use generic system fonts for headings. " +
+      "Create a standalone HTML snippet containing a single page of notes strictly following the provided page blueprint. " +
+      "The page MUST be wrapped in a single <div class=\"page\">...</div> container. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
+      "CRITICAL TYPOGRAPHY & HIERARCHY: If you import Google Fonts, use <link rel=\"stylesheet\" href=\"...\"> at the top of your snippet. Proactively apply the theme's fancy/decorative Google Fonts to all main titles, sub-titles, section titles, headers, and sub-headers (H1, H2, H3, H4, etc.) to make them look visually striking, premium, and themed. Keep body text highly readable (e.g. using Lato, Inter, or Open Sans). Do NOT use generic system fonts for headings. " +
       "Ensure you strictly enforce the following class-based font size hierarchy in your CSS and HTML: " +
       "1. Main Title (.title): 40px, extra-bold (use for document title/cover page). " +
       "2. Subtitles (.subtitle): 32px, semi-bold. " +
@@ -1421,33 +1442,58 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       "5. Sub-headers (h2, .sub-header): 20px, semi-bold. " +
       "6. Table Header Row / Card Headers (h3, th, .box-header, .card-title): 16px, bold. " +
       "7. Body / Rows (td, p, li, .body-text): 14px, regular. " +
-      "8. Page Numbers (.page-number): 11px, medium (placed at the bottom right of each page: <div class=\"page-number\">Page X of Y</div>). " +
+      "8. Page Numbers (.page-number): 11px, medium (placed at the bottom right of the page: <div class=\"page-number\">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div>). " +
       "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
       "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
-      "CRITICAL LAYOUT: You must wrap each page defined in the blueprint in a separate <div class=\"page\">...</div> container. The output must consist of multiple .page containers, one for each page in the blueprint. Do NOT merge them into a single container. " +
-      "PAGE DENSITY & GAPS: Avoid leaving large empty spaces at the bottom of pages. Pack elements efficiently. If keeping a card, list, or block together would result in a large empty space (more than 20% of the page height) on the previous page, allow the card or block to break across pages naturally instead of pushing it to the next page. Do not unnecessarily increase the page count. " +
-      "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the source files (PPTX slide titles take top priority, DOCX headers take second priority). Do NOT invent new headers, rename slides, or merge unrelated topics under new titles. " +
+      "PAGE DENSITY & GAPS: Avoid leaving large empty spaces at the bottom of pages. Pack elements efficiently. " +
+      "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the blueprint. Do NOT invent new headers or rename sections. " +
       (bStrictFileContentOnly
         ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
         : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
 
-    const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), fancy Google Fonts on headings, strict class-based font size hierarchy (Title: 40px, Subtitle: 32px, Section Title: 28px, Header: 24px, Sub-header: 20px, Box Header: 16px, Body: 14px, Page Number: 11px), page numbers bottom-aligned, print-safe styles, no hover, no overflow. Pack content efficiently to minimize page count.`;
+    const pagePromises = blueprintJSON.map(async (pagePlan, index) => {
+      const pagePrompt = `Task: Generate a single standalone A4 HTML page (wrapped in <div class="page">...</div>) for the following page plan from the blueprint:
+      
+      Page Plan: ${JSON.stringify(pagePlan)}
+      
+      Theme styling rules: ${vibeInstruction}
+      Color palette rules: ${colorInstruction}
+      
+      Specific Page Requirements:
+      - Enforce A4 dimensions with narrow margins (exactly 12mm padding).
+      - Use fancy Google Fonts on headings.
+      - Enforce the strict class-based font size hierarchy.
+      - Place the exact page number placeholder: <div class="page-number">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div> in the bottom right corner.
+      - Ensure print-safe styles, no hover, no overflow.
+      - Return ONLY the raw HTML code for this single page. Do NOT add markdown code fences (like \`\`\`html) and do NOT add any introductory or concluding conversational text.`;
 
-    let htmlDraft = await generateContentWithRotation(
-      htmlPrompt,
-      htmlSystemInstruction,
-      {},
-      CREATIVE_LAYOUT_MODEL_CHAIN
-    );
+      return generateContentWithRotation(
+        pagePrompt,
+        htmlSystemInstruction,
+        {},
+        CREATIVE_LAYOUT_MODEL_CHAIN
+      );
+    });
+
+    const pageHtmls = await Promise.all(pagePromises);
+    logEvent('info', `Successfully drafted all ${pageHtmls.length} HTML pages in parallel.`);
+
+    // Compile pages and inject dynamic page numbers
+    const compiledHtmlDraft = pageHtmls.map((pageHtml, index) => {
+      const cleanHtml = cleanHtmlResponse(pageHtml);
+      return cleanHtml
+        .replace(/{{PAGE_NUM}}/g, index + 1)
+        .replace(/{{TOTAL_PAGES}}/g, pageHtmls.length);
+    }).join('\n');
 
     // ── STAGE 3: HTML Validation Prompts ───────────────────────────────────
-    logEvent('info', 'Executing Stage 3: Running HTML validation...');
+    logEvent('info', 'Executing Stage 3: Running HTML validation on compiled document...');
     const validatorSystemInstruction = "Fix all overflow, print-safety (no hover/transitions), and CSS containment violations. Return ONLY corrected HTML.";
     const validatorPrompt = `
 Task: Inspect the generated HTML/CSS code below for any formatting, overflow, page-bleeding, or print-safety violations, and output a corrected, fully safe version.
 
 --- HTML/CSS Code to Inspect ---
-${cleanHtmlResponse(htmlDraft)}
+${compiledHtmlDraft}
 --------------------------------
 
 Checklist of violations you MUST correct if present:
@@ -1458,7 +1504,7 @@ Checklist of violations you MUST correct if present:
 5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
 6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
 7. PAGE CONTAINERS & TEXT SHAPES: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Ensure all text-holding containers are standard squares, rectangles, or circles. Ensure any stylized/decorative borders or accents are placed at the outer page margins and do not overlap text. Do NOT strip out visual shapes, colors, or card structures.
-8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (40px), Subtitle (32px), Section Title (28px), Header (24px), Sub-header (20px), Table Header / Box Header (16px), Body / Rows (14px), and Page Numbers (11px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element. Avoid unnecessary page inflation and pack elements densely.
+8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (40px), Subtitle (32px), Section Title (28px), Header (24px), Sub-header (20px), Table Header / Box Header (16px), Body / Rows (14px), and Page Numbers (11px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element (with the correct resolved page numbers). Avoid unnecessary page inflation and pack elements densely.
 9. GOOGLE FONTS & THEME: You MUST preserve all <link rel="stylesheet"> tags for Google Fonts and all font-family CSS rules. Do NOT strip them.
 
 Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
