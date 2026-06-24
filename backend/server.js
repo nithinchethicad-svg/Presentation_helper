@@ -52,8 +52,7 @@ let keyStatuses = apiKeys.map((key, idx) => ({
   index: idx + 1,
   maskedKey: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : 'Not Set',
   status: 'Not Checked',
-  model: '-',
-  error: null,
+  modelResults: null,
   lastChecked: null
 }));
 
@@ -115,41 +114,79 @@ const getErrorStatus = (error) => {
   return 500;
 };
 
-// Quota check helper function using GoogleGenAI
-async function verifyKeyQuota(apiKey) {
-  if (!apiKey) return { status: 'Not Configured', error: null };
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: "Hello, this is a connection check. Reply with 'OK'.",
-    });
-    return { status: 'Active (Success)', error: null };
-  } catch (err) {
-    const errMsg = err.message || '';
-    const errStatus = getErrorStatus(err);
-    const is429 = errStatus === 429;
-    return { 
-      status: is429 ? 'Quota Exceeded (429)' : 'Failed / Error', 
-      error: errMsg 
-    };
-  }
-}
-
+// Comprehensive quota check checking all primary models sequentially per key
 async function checkAllKeysQuotas() {
+  const modelsToCheck = [
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-pro-preview',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
+  ];
+
+  logEvent('info', `Starting comprehensive Gemini API key quota verification check across ${modelsToCheck.length} models...`);
+
   const promises = apiKeys.map(async (key, idx) => {
-    const result = await verifyKeyQuota(key);
+    const modelResults = {};
+    let activeCount = 0;
+    let authError = null;
+    let quotaErrorCount = 0;
+    
+    // Check models sequentially for this key to prevent rate limit spikes on Free Tier
+    for (const modelName of modelsToCheck) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: key });
+        await ai.models.generateContent({
+          model: modelName,
+          contents: "ping",
+        });
+        modelResults[modelName] = { working: true, status: 'Active', error: null };
+        activeCount++;
+      } catch (err) {
+        const errMsg = err.message || '';
+        const status = getErrorStatus(err);
+        modelResults[modelName] = { 
+          working: false, 
+          status: status === 429 ? 'Quota Exceeded (429)' : (status === 503 ? 'Unavailable (503)' : 'Failed'), 
+          error: errMsg 
+        };
+        
+        if (status === 401 || status === 403) {
+          authError = errMsg;
+        }
+        if (status === 429) {
+          quotaErrorCount++;
+        }
+      }
+      // Add a tiny 100ms sleep between model checks to prevent aggressive hammering
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Determine overall key status
+    let overallStatus = 'Inactive';
+    if (activeCount === modelsToCheck.length) {
+      overallStatus = 'Active (All Models)';
+    } else if (activeCount > 0) {
+      overallStatus = `Active (${activeCount}/${modelsToCheck.length} Models)`;
+    } else if (authError) {
+      overallStatus = 'Invalid Key (Auth Error)';
+    } else if (quotaErrorCount > 0) {
+      overallStatus = 'Quota Exceeded (429)';
+    } else {
+      overallStatus = 'Failed / Error';
+    }
+
     keyStatuses[idx] = {
       index: idx + 1,
       maskedKey: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : 'Not Set',
-      status: result.status,
-      model: MODEL_NAME,
-      error: result.error,
+      status: overallStatus,
+      modelResults,
       lastChecked: new Date().toLocaleTimeString()
     };
   });
+
   await Promise.all(promises);
-  logEvent('info', `Completed Gemini API key quota verification check using model ${MODEL_NAME}.`);
+  logEvent('info', 'Completed comprehensive Gemini API key quota verification check across all models.');
 }
 
 // Get the model name from environment or default to gemini-3.5-flash.
@@ -1370,33 +1407,50 @@ app.get('/api/logs', (req, res) => {
                 <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-muted);">
                   <th style="padding: 8px;">Key Index</th>
                   <th style="padding: 8px;">Masked Key</th>
-                  <th style="padding: 8px;">Model Checked</th>
-                  <th style="padding: 8px;">Status</th>
+                  <th style="padding: 8px;">Overall Status</th>
+                  <th style="padding: 8px; width: 45%;">Model Support / Status</th>
                   <th style="padding: 8px;">Last Checked</th>
-                  <th style="padding: 8px;">Details / Error</th>
                 </tr>
               </thead>
               <tbody>
                 ${keyStatuses.map(k => {
                   let badgeColor = '#64748b'; // Gray
-                  if (k.status === 'Active (Success)') badgeColor = '#10b981'; // Green
+                  if (k.status.startsWith('Active')) badgeColor = '#10b981'; // Green
                   if (k.status === 'Quota Exceeded (429)') badgeColor = '#f59e0b'; // Amber
-                  if (k.status.startsWith('Failed') || k.status.startsWith('Error')) badgeColor = '#ef4444'; // Red
+                  if (k.status.includes('Auth') || k.status.startsWith('Failed') || k.status.startsWith('Error')) badgeColor = '#ef4444'; // Red
                   
+                  let modelStatusHtml = '<div style="display: flex; flex-wrap: wrap; gap: 6px;">';
+                  if (k.modelResults) {
+                    Object.entries(k.modelResults).forEach(([modelName, res]) => {
+                      let mColor = '#ef4444'; // Red for failed
+                      if (res.working) mColor = '#10b981'; // Green for working
+                      else if (res.status.includes('429')) mColor = '#f59e0b'; // Amber for quota
+                      
+                      const shortModelName = modelName.replace('gemini-', '');
+                      const titleText = res.working ? 'Working (Connection OK)' : `${res.status}: ${res.error.replace(/"/g, '&quot;')}`;
+                      
+                      modelStatusHtml += `
+                        <span style="background-color: rgba(30, 41, 59, 0.5); border: 1px solid ${mColor}; color: ${mColor}; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: monospace; font-weight: 600;" title="${titleText}">
+                          ${shortModelName}: ${res.working ? 'OK' : 'ERR'}
+                        </span>
+                      `;
+                    });
+                  } else {
+                    modelStatusHtml += '<span style="color: var(--text-muted); font-size: 0.8rem;">No model data (Check Quotas to verify)</span>';
+                  }
+                  modelStatusHtml += '</div>';
+
                   return `
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                      <td style="padding: 8px; font-weight: bold;">Key #${k.index}</td>
-                      <td style="padding: 8px; font-family: monospace;">${k.maskedKey}</td>
-                      <td style="padding: 8px; font-family: monospace; font-size: 0.85rem; color: var(--info-color);">${k.model || '-'}</td>
-                      <td style="padding: 8px;">
-                        <span style="background-color: ${badgeColor}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">
+                      <td style="padding: 12px 8px; font-weight: bold;">Key #${k.index}</td>
+                      <td style="padding: 12px 8px; font-family: monospace;">${k.maskedKey}</td>
+                      <td style="padding: 12px 8px;">
+                        <span style="background-color: ${badgeColor}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; display: inline-block;">
                           ${k.status}
                         </span>
                       </td>
-                      <td style="padding: 8px; color: var(--text-muted);">${k.lastChecked || 'Never Checked'}</td>
-                      <td class="error-cell" style="padding: 8px; font-size: 0.8rem; color: #f87171; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;" onclick="toggleErrorText(this)" title="Click to view/select full error message">
-                        ${k.error || '-'}
-                      </td>
+                      <td style="padding: 12px 8px;">${modelStatusHtml}</td>
+                      <td style="padding: 12px 8px; color: var(--text-muted);">${k.lastChecked || 'Never Checked'}</td>
                     </tr>
                   `;
                 }).join('')}
