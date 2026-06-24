@@ -582,6 +582,18 @@ const SpeakerNotesScreen = ({
       return msg.stage === activeStage;
     });
 
+    const extractPartialReply = (accumulatedStr) => {
+      const match = accumulatedStr.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+      if (match) {
+        return match[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+      }
+      return "";
+    };
+
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat-speaker-notes`, {
         method: 'POST',
@@ -599,43 +611,105 @@ const SpeakerNotesScreen = ({
         })
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || 'An error occurred while calling the chatbot.');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'An error occurred while communicating with the assistant.');
       }
 
-      // Add AI reply to chat log with stage/sectionIndex metadata
+      // Add a temporary model message to the history that we will update in real-time
       setChatHistory(prev => [...prev, { 
         role: 'model', 
-        text: data.reply,
-        stage: data.nextStage || activeStage,
-        sectionIndex: data.currentSectionIndex !== undefined ? data.currentSectionIndex : activeIndex,
-        toc: data.toc || activeToc,
-        proposedSectionContent: data.proposedSectionContent,
-        options: data.options || []
+        text: '',
+        stage: activeStage,
+        sectionIndex: activeIndex,
+        isStreaming: true,
+        options: []
       }]);
 
-      // Update state based on structured response
-      if (data.topic) {
-        setTopic(data.topic);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || "";
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data: ')) continue;
+
+          const dataStr = line.slice(6).trim();
+          if (dataStr === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+            if (parsed.chunk) {
+              accumulatedText += parsed.chunk;
+              const streamingReply = extractPartialReply(accumulatedText);
+
+              // Update the streaming reply in the chat log in real-time
+              setChatHistory(prev => {
+                const nextHistory = [...prev];
+                const lastMsg = nextHistory[nextHistory.length - 1];
+                if (lastMsg && lastMsg.role === 'model') {
+                  lastMsg.text = streamingReply;
+                }
+                return nextHistory;
+              });
+            }
+          } catch (e) {
+            console.error("Error parsing stream chunk:", e);
+          }
+        }
       }
-      if (data.toc && data.toc.length > 0) {
-        setToc(data.toc);
+
+      // Parse the fully completed JSON payload
+      const finalData = JSON.parse(accumulatedText.trim());
+
+      // Update the final model message in the chat log
+      setChatHistory(prev => {
+        const nextHistory = [...prev];
+        const lastMsg = nextHistory[nextHistory.length - 1];
+        if (lastMsg && lastMsg.role === 'model') {
+          lastMsg.text = finalData.reply;
+          lastMsg.stage = finalData.nextStage || activeStage;
+          lastMsg.sectionIndex = finalData.currentSectionIndex !== undefined ? finalData.currentSectionIndex : activeIndex;
+          lastMsg.toc = finalData.toc || activeToc;
+          lastMsg.proposedSectionContent = finalData.proposedSectionContent;
+          lastMsg.options = finalData.options || [];
+          lastMsg.isStreaming = false;
+        }
+        return nextHistory;
+      });
+
+      // Update remaining structured states
+      if (finalData.topic) {
+        setTopic(finalData.topic);
       }
-      if (data.nextStage) {
-        setStage(data.nextStage);
+      if (finalData.toc && finalData.toc.length > 0) {
+        setToc(finalData.toc);
       }
-      if (data.currentSectionIndex !== undefined) {
-        setCurrentSectionIndex(data.currentSectionIndex);
+      if (finalData.nextStage) {
+        setStage(finalData.nextStage);
       }
-      if (data.proposedSectionContent) {
-        setProposedSectionContent(data.proposedSectionContent);
+      if (finalData.currentSectionIndex !== undefined) {
+        setCurrentSectionIndex(finalData.currentSectionIndex);
+      }
+      if (finalData.proposedSectionContent) {
+        setProposedSectionContent(finalData.proposedSectionContent);
       } else {
         setProposedSectionContent(null);
       }
-      if (data.options && data.options.length > 0) {
-        setOptions(data.options);
+      if (finalData.options && finalData.options.length > 0) {
+        setOptions(finalData.options);
       } else {
         setOptions([]);
       }
@@ -643,8 +717,18 @@ const SpeakerNotesScreen = ({
     } catch (err) {
       console.error(err);
       setErrorMsg(err.message || 'Failed to communicate with presentation assistant.');
-      // Remove the last message from history if failed so user can try again
-      setChatHistory(prev => prev.slice(0, -1));
+      
+      // Clean up history to remove failed bubbles
+      setChatHistory(prev => {
+        let nextHistory = [...prev];
+        if (nextHistory[nextHistory.length - 1]?.role === 'model') {
+          nextHistory = nextHistory.slice(0, -1);
+        }
+        if (nextHistory[nextHistory.length - 1]?.role === 'user') {
+          nextHistory = nextHistory.slice(0, -1);
+        }
+        return nextHistory;
+      });
     } finally {
       setIsLoading(false);
     }

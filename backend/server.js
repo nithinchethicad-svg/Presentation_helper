@@ -447,6 +447,207 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
 }
 
 /**
+ * Streaming content generation with multi-model fallback and key rotation.
+ * Iterates through model priority chain, rotates keys, and returns a response stream.
+ */
+async function generateContentStreamWithFallback(contents, systemInstruction, extraConfig = {}, modelChain = MODEL_FALLBACK_CHAIN) {
+  if (apiKeys.length === 0) {
+    const errorMsg = "No AI service API keys configured. Please add keys to your backend/.env file.";
+    logEvent('error', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  const errors = [];
+
+  // Loop through model families in priority chain
+  for (const modelName of modelChain) {
+    let attempts = 0;
+    const maxAttempts = apiKeys.length;
+    let modelHasWorkableKeys = false;
+
+    // Check if we have a cache hit for this modelName and hash
+    let pinnedKeyIndex = null;
+    let cachedContentName = null;
+    if (extraConfig.cachedContentHash) {
+      for (let i = 0; i < apiKeys.length; i++) {
+        const cacheKey = `${modelName}_${i}_${extraConfig.cachedContentHash}`;
+        const cacheEntry = contextCacheMap.get(cacheKey);
+        if (cacheEntry && cacheEntry.expiresAt > Date.now()) {
+          pinnedKeyIndex = i;
+          cachedContentName = cacheEntry.name;
+          break;
+        }
+      }
+    }
+
+    // Loop through keys for the current model
+    while (attempts < maxAttempts) {
+      const keyIndex = (pinnedKeyIndex !== null && attempts === 0) ? pinnedKeyIndex : (currentKeyIndex + attempts) % apiKeys.length;
+      const apiKey = apiKeys[keyIndex];
+      const maskedKey = apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'undefined';
+      
+      let promptSnippet = '';
+      if (typeof contents === 'string') {
+        promptSnippet = contents.substring(0, 150) + '...';
+      } else if (Array.isArray(contents)) {
+        const lastMsg = contents[contents.length - 1];
+        const lastText = lastMsg && lastMsg.parts && lastMsg.parts[0] ? lastMsg.parts[0].text : '';
+        promptSnippet = `[Chat History - ${contents.length} messages. Last: ${typeof lastText === 'string' ? lastText.substring(0, 100) : ''}]`;
+      } else {
+        promptSnippet = '[Object prompt]';
+      }
+
+      logEvent('info', `Attempting stream connection for model ${modelName} with Key Index ${keyIndex + 1}/${apiKeys.length} (${maskedKey})`, {
+        model: modelName,
+        keyIndex: keyIndex + 1,
+        promptSnippet
+      });
+
+      // Manage Context Cache
+      let cacheToUse = null;
+      if (extraConfig.cachedContentHash) {
+        if (pinnedKeyIndex === keyIndex) {
+          cacheToUse = cachedContentName;
+          logEvent('info', `Cache hit for model ${modelName} using Key Index ${keyIndex + 1}: ${cacheToUse}`);
+        } else {
+          // Cache miss for this key index: try to create a new cache
+          const cacheKey = `${modelName}_${keyIndex}_${extraConfig.cachedContentHash}`;
+          const disableKey = `${modelName}_${keyIndex}`;
+
+          if (keysWithoutCacheQuota.has(disableKey)) {
+            logEvent('info', `Bypassing context cache creation for Key Index ${keyIndex + 1} (known Free Tier key with no cache quota for ${modelName})`);
+          } else {
+            try {
+              const tempAi = new GoogleGenAI({ apiKey });
+              const cacheContents = [
+                {
+                  role: 'user',
+                  parts: [{ text: `Presentation Context:
+Topic: ${extraConfig.topic || 'Not set yet'}
+ToC: ${JSON.stringify(extraConfig.toc || [])}
+Current Document:
+${extraConfig.currentDocument || '(Empty Document)'}` }]
+                },
+                {
+                  role: 'model',
+                  parts: [{ text: "Understood. I have cached this presentation context." }]
+                }
+              ];
+
+              // Count tokens of the content to check model caching thresholds
+              const tokenResult = await tempAi.models.countTokens({
+                model: modelName,
+                contents: cacheContents
+              });
+              const totalTokens = tokenResult.totalTokens;
+              const minTokens = getMinCacheTokens(modelName);
+
+              if (totalTokens >= minTokens) {
+                logEvent('info', `Creating context cache for Key Index ${keyIndex + 1}. Token count ${totalTokens} >= threshold ${minTokens} for ${modelName}`);
+                const cache = await tempAi.caches.create({
+                  model: modelName,
+                  config: {
+                    contents: cacheContents,
+                    ttl: '600s' // 10 minutes TTL
+                  }
+                });
+                contextCacheMap.set(cacheKey, {
+                  name: cache.name,
+                  expiresAt: Date.now() + 600 * 1000
+                });
+                cacheToUse = cache.name;
+                logEvent('info', `Successfully created context cache on Key Index ${keyIndex + 1}: ${cache.name}`);
+              } else {
+                logEvent('info', `Bypassing context cache for Key Index ${keyIndex + 1}: token count ${totalTokens} is less than threshold ${minTokens} for ${modelName}`);
+              }
+            } catch (cacheErr) {
+              const errMsg = cacheErr.message || '';
+              logEvent('warn', `Failed to create context cache for ${modelName} using Key ${keyIndex + 1}: ${errMsg}`);
+              
+              if (errMsg.includes('limit=0') || 
+                  errMsg.includes('TotalCachedContentStorageTokens') || 
+                  errMsg.includes('limit exceeded') || 
+                  errMsg.includes('Free tier') ||
+                  errMsg.includes('Community tier')) {
+                keysWithoutCacheQuota.add(disableKey);
+                logEvent('info', `Key Index ${keyIndex + 1} identified as Free Tier (no cache storage quota) for ${modelName}. Added to bypass list.`);
+              }
+            }
+          }
+        }
+      }
+
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        let responseStream;
+
+        const { cachedContentHash, topic, toc, currentDocument, ...restConfig } = extraConfig;
+        const config = {
+          ...(cacheToUse ? { cachedContent: cacheToUse } : {}),
+          ...(systemInstruction ? { systemInstruction } : {}),
+          ...restConfig
+        };
+
+        responseStream = await ai.models.generateContentStream({
+          model: modelName,
+          contents: contents,
+          config
+        });
+
+        logEvent('info', `Stream connection established for model ${modelName} using Key Index ${keyIndex + 1}/${apiKeys.length}`);
+        return { responseStream, modelName, keyIndex };
+      } catch (error) {
+        // If we had a cache to use, clear it since it might be invalid/expired on the server
+        if (extraConfig.cachedContentHash) {
+          const cacheKey = `${modelName}_${keyIndex}_${extraConfig.cachedContentHash}`;
+          contextCacheMap.delete(cacheKey);
+        }
+
+        const errStatus = getErrorStatus(error);
+        const errMsg = error.message || '';
+        
+        logEvent('warn', `Stream connection failed for model ${modelName} using Key ${keyIndex + 1}/${apiKeys.length} (Status: ${errStatus})`, {
+          model: modelName,
+          keyIndex: keyIndex + 1,
+          errorMessage: errMsg
+        });
+
+        errors.push({ model: modelName, keyIndex: keyIndex + 1, status: errStatus, message: errMsg });
+        
+        // If this error is a fallback trigger, we continue model rotation
+        if (isFallbackTrigger(error)) {
+          modelHasWorkableKeys = true; 
+        }
+        attempts++;
+      }
+    }
+
+    // If we exhausted all keys for this model and it was due to quota/model-availability,
+    // we sequentially cascade to the next model in the chain.
+    if (modelHasWorkableKeys) {
+      logEvent('info', `Cascading down from model ${modelName} to the next model in fallback chain.`);
+    } else {
+      // If none of the keys failed with quota/availability (e.g. all 7 keys failed with Auth errors),
+      // we stop and throw, because changing models won't fix invalid keys.
+      const allAuth = errors.filter(e => e.model === modelName).every(e => e.status === 401 || e.status === 403);
+      if (allAuth) {
+        logEvent('error', `Aborting fallback: All keys failed with authentication errors.`);
+        break;
+      }
+    }
+  }
+
+  // If all models and keys failed
+  const finalErrorMsg = "All AI models and rotating API keys failed to establish a stream. Check your network, authentication, or API quota status.";
+  logEvent('error', finalErrorMsg, { allErrors: errors });
+  
+  const finalError = new Error(finalErrorMsg);
+  finalError.status = errors[errors.length - 1]?.status || 500;
+  finalError.details = errors;
+  throw finalError;
+}
+
+/**
  * Legacy wrapper to maintain compatibility with existing generate calls.
  */
 async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}, modelChain = undefined) {
@@ -1168,6 +1369,7 @@ app.post('/api/chat-speaker-notes', async (req, res) => {
     }
 
     logEvent('info', `Received speaker notes chat request. Messages: ${messages.length}, Stage: ${stage}, Section Index: ${currentSectionIndex}`);
+    
     // Convert history messages (excluding latest prompt) to Gemini content format
     const history = messages.slice(0, -1).map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
@@ -1175,6 +1377,50 @@ app.post('/api/chat-speaker-notes', async (req, res) => {
     }));
 
     const lastMessage = messages[messages.length - 1]?.text || '';
+
+    // 1. Sliding Window History Bounding
+    let activeHistory = [...history];
+    if (activeHistory.length > 8) {
+      logEvent('info', `Active chat history size (${activeHistory.length} turns) exceeds limit. Summarizing older turns for sliding window...`);
+      const oldestTurns = activeHistory.slice(0, -4);
+      const keepTurns = activeHistory.slice(-4);
+      
+      try {
+        const summarySystemInstruction = 
+          "You are a helpful assistant. Summarize the following brainstorming chat history between the user and the AI assistant regarding a presentation. Be extremely concise and capture only key decisions, approved titles, chosen themes, or specific details for slides. Keep the summary under 80 words.";
+        
+        const windowSummary = await generateContentWithFallback(
+          oldestTurns,
+          summarySystemInstruction,
+          { responseMimeType: "text/plain" },
+          SUMMARIZATION_MODEL_CHAIN
+        );
+        
+        // Prepend the summary as context in the active history
+        activeHistory = [
+          {
+            role: 'user',
+            parts: [{ text: `Summary of previous conversation context:\n${windowSummary}` }]
+          },
+          {
+            role: 'model',
+            parts: [{ text: "Understood. I will maintain this context and proceed with our conversation." }]
+          },
+          ...keepTurns
+        ];
+        logEvent('info', 'Successfully bounded history window and injected summary context.');
+      } catch (sumErr) {
+        logEvent('warn', `Failed to generate sliding window summary, proceeding with full history: ${sumErr.message}`);
+      }
+    }
+
+    // Append the latest user prompt to the active history
+    if (lastMessage) {
+      activeHistory.push({
+        role: 'user',
+        parts: [{ text: lastMessage }]
+      });
+    }
 
     const chatSummaryContext = chatSummary ? `\n\nSummary of Previous Sections and Brainstorming (Context):\n-------------------\n${chatSummary}\n-------------------\n` : '';
 
@@ -1256,10 +1502,14 @@ Contextual Guidelines:
     // Compute hash for context caching
     const cachedContentHash = getContentHash(systemInstruction, topic, toc, currentDocument);
 
-    // Execute stateless chat turn using fallback router with CHAT_MODEL_CHAIN
-    const result = await executeStatelessChatTurn(
-      history,
-      lastMessage,
+    // Set headers for Server-Sent Events (SSE)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Initiate the streaming connection using the fallback router
+    const { responseStream, modelName, keyIndex } = await generateContentStreamWithFallback(
+      activeHistory,
       systemInstruction,
       {
         responseMimeType: "application/json",
@@ -1271,26 +1521,32 @@ Contextual Guidelines:
       CHAT_MODEL_CHAIN
     );
 
-    let parsedResponse;
-    try {
-      parsedResponse = cleanAndParseJson(result.text);
-    } catch (parseError) {
-      logEvent('error', `Failed to parse model response. Raw text: "${result.text}"`, { error: parseError.message });
-      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+    // Stream the generated JSON chunks directly to the client
+    for await (const chunk of responseStream) {
+      res.write(`data: ${JSON.stringify({ chunk: chunk.text })}\n\n`);
     }
 
-    if (!parsedResponse) {
-      throw new Error("Failed to parse AI response as JSON.");
-    }
+    // Update current active key index upon successful stream completion
+    currentKeyIndex = keyIndex;
+    logEvent('info', `Stream completed successfully using Key Index ${keyIndex + 1}/${apiKeys.length} for model ${modelName}`);
 
-    res.json(parsedResponse);
+    res.write('data: [DONE]\n\n');
+    res.end();
+
   } catch (error) {
-    logEvent('error', `Chat speaker notes failed: ${error.message}`);
-    const status = error.status || 500;
-    res.status(status).json({ 
-      error: status === 429 ? 'rate_limit_exceeded' : 'error', 
-      message: error.message || 'An error occurred during chat.' 
-    });
+    logEvent('error', `Chat speaker notes streaming failed: ${error.message}`);
+    
+    if (res.headersSent) {
+      // If headers were already sent, write a special error event to close the stream
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.end();
+    } else {
+      const status = error.status || 500;
+      res.status(status).json({ 
+        error: status === 429 ? 'rate_limit_exceeded' : 'error', 
+        message: error.message || 'An error occurred during chat.' 
+      });
+    }
   }
 });
 
