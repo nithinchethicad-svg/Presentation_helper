@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #1e3a8a;       /* Deep Navy */
+  --secondary-color: #3b82f6;     /* Royal Blue */
+  --accent-color: #38bdf8;        /* Sky Blue */
+  --bg-color: #f8fafc;            /* Slate 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #e2e8f0;        /* Slate 200 */
+  --text-color: #0f172a;          /* Slate 900 */
+  --soft-fill: #eff6ff;           /* Soft Blue Tint */
+}

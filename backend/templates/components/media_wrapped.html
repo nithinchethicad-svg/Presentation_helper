@@ -1,0 +1,94 @@
+<div class="media-wrapped-block section-block">
+  <!-- Programmatically Injected Image and Caption Block -->
+  {{mediaBlock}}
+  
+  <!-- Paragraph Text wrapping the image -->
+  <div class="wrapped-text-container">
+    <p class="media-description-text">{{textContent}}</p>
+  </div>
+
+  <!-- Supporting Bullet Points below the float area -->
+  <div class="media-bullets-container">
+    <ul class="bullet-list">
+      {{bulletsList}}
+    </ul>
+  </div>
+</div>
+
+<style>
+  .media-wrapped-block {
+    flex: 1 1 auto;
+    width: 100%;
+    display: block; /* Use block to enable CSS floats wrapping */
+  }
+  
+  /* Dynamic Image float classes injected from JS */
+  .media-container {
+    max-width: 45%;
+    margin-bottom: 12px;
+    background-color: var(--card-bg);
+    border: var(--card-border, 1px solid var(--border-color));
+    border-radius: var(--card-radius);
+    padding: 6px;
+    box-shadow: var(--card-shadow);
+  }
+  
+  .media-container.float-right {
+    float: right;
+    margin-left: 14px;
+  }
+  
+  .media-container.float-left {
+    float: left;
+    margin-right: 14px;
+  }
+  
+  .media-container img {
+    width: 100%;
+    height: auto;
+    border-radius: calc(var(--card-radius) - 2px);
+    display: block;
+  }
+  
+  .image-caption {
+    font-size: 10.5px;
+    color: var(--text-color);
+    opacity: 0.8;
+    text-align: center;
+    padding-top: 5px;
+    line-height: 1.3;
+    font-weight: 500;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .wrapped-text-container {
+    margin-bottom: 12px;
+  }
+  
+  .media-description-text {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-color);
+    text-align: justify;
+  }
+  
+  .media-bullets-container {
+    clear: both; /* Ensures lists fall below the floated image */
+    margin-top: 14px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 12px;
+  }
+  
+  .media-bullets-container ul {
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .media-bullets-container li {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+</style>

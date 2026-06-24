@@ -1,0 +1,19 @@
+:root {
+  --primary-color: #ff007f;       /* Neon Pink */
+  --secondary-color: #00f0ff;     /* Neon Cyan */
+  --accent-color: #7b2cbf;        /* Neon Purple */
+  --bg-color: #0a0a0c;            /* Matte Carbon Black */
+  --card-bg: #121216;             /* Carbon Charcoal Card */
+  --border-color: #332244;        /* Deep Violet Border */
+  --text-color: #ffffff;          /* Pure White Text */
+  --soft-fill: #251c2d;           /* Cyber Violet Fill */
+}
+/* Override print background for cyberpunk dark mode to be print-friendly if printed */
+@media print {
+  :root {
+    --bg-color: #ffffff;
+    --card-bg: #fafafa;
+    --text-color: #0a0a0c;
+    --border-color: #e4e4e7;
+  }
+}

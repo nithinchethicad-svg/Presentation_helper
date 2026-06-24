@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #0f766e;       /* Deep Teal */
+  --secondary-color: #0d9488;     /* Mint Teal */
+  --accent-color: #38bdf8;        /* Sky Blue Accent */
+  --bg-color: #f0fdfa;            /* Teal 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #99f6e4;        /* Teal 200 */
+  --text-color: #042f2e;          /* Dark Teal Text */
+  --soft-fill: #ccfbf1;           /* Soft Aquamarine Tint */
+}

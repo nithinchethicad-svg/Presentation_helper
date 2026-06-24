@@ -1,0 +1,274 @@
+:root {
+  --font-heading: 'Fredoka', 'Quicksand', 'Caveat', sans-serif;
+  --font-body: 'Lato', sans-serif;
+  --card-radius: 24px 8px 24px 8px;
+  --card-padding: 24px;
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.02), inset 0 0 0 2px rgba(254, 180, 123, 0.1);
+  --card-border: none;
+  --line-height-body: 1.6;
+}
+
+/* Page Soft Background Warmth */
+.page {
+  background-color: var(--bg-color) !important;
+}
+
+/* Warm & Encouraging Cozy Accents - Clean Header without dividing lines */
+.page-header {
+  border-bottom: none !important;
+  margin-bottom: 22px !important;
+  padding-bottom: 0px !important;
+}
+
+.page-footer {
+  border-top: none !important;
+  padding-top: 0px !important;
+}
+
+/* WordArt: Sunset Script Gradient with soft ambient glow (clean, non-skewed, highly readable) */
+.page-title {
+  font-family: 'Caveat', var(--font-heading) !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 50%, var(--primary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(2px 2px 3px color-mix(in srgb, var(--secondary-color) 25%, transparent)) !important;
+  display: inline-block !important;
+}
+
+.page-subtitle {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--secondary-color);
+  opacity: 0.9;
+}
+
+/* Cover Page Typography & Sunset Gradients */
+.cover-title {
+  font-family: 'Caveat', var(--font-heading) !important;
+  font-size: 38px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 50%, var(--primary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(2px 2px 4px color-mix(in srgb, var(--secondary-color) 30%, transparent)) !important;
+  display: inline-block !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 16px !important;
+  color: var(--text-color) !important;
+  font-weight: 500 !important;
+  opacity: 0.85 !important;
+}
+
+.branding-tag {
+  font-family: var(--font-heading) !important;
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+  border-color: var(--secondary-color) !important;
+  border-radius: 12px !important;
+}
+
+.meta-value {
+  color: var(--primary-color) !important;
+}
+
+/* Stylized Cozy Flower Cover Divider Symbol */
+.cover-divider {
+  width: 120px !important;
+  height: auto !important;
+  background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--secondary-color) !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-divider::before {
+  content: "✿" !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+}
+
+/* Rounded cozy cards with organic corners and soft ambient shadows */
+.card {
+  background-color: var(--card-bg, #ffffff);
+  border: none !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow) !important;
+  padding: var(--card-padding) !important;
+}
+
+.card-title {
+  font-family: var(--font-heading) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  border-bottom: 1.5px dashed color-mix(in srgb, var(--secondary-color) 30%, transparent) !important;
+  padding-bottom: 8px !important;
+  color: var(--primary-color);
+  text-transform: none;
+  margin-bottom: 12px !important;
+}
+
+/* Organic curved double-wave margin bars using offset pseudo-elements */
+.margin-accent {
+  height: 16px !important;
+  border-radius: 0 0 50% 50% / 0 0 100% 100% !important;
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  z-index: 10;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.margin-accent::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 100%;
+  height: 16px;
+  border-radius: 0 0 50% 50% / 0 0 100% 100% !important;
+  background: linear-gradient(90deg, var(--secondary-color) 0%, var(--primary-color) 100%) !important;
+  opacity: 0.4;
+  z-index: -1;
+}
+
+.margin-accent-bottom {
+  height: 16px !important;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0 !important;
+  background: linear-gradient(90deg, var(--secondary-color) 0%, var(--primary-color) 100%) !important;
+  z-index: 10;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+}
+
+.margin-accent-bottom::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  width: 100%;
+  height: 16px;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0 !important;
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  opacity: 0.4;
+  z-index: -1;
+}
+
+/* Cozy Custom Bullet Points - Sweet Flower Glyph */
+.bullet-list li, .two-column-list li {
+  list-style: none !important;
+  position: relative;
+  padding-left: 18px;
+  font-size: 13.5px !important;
+}
+
+.bullet-list li::before, .two-column-list li::before {
+  content: "✿" !important;
+  position: absolute;
+  left: 0;
+  top: 1px;
+  color: var(--secondary-color);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Disable Latent Corner Vector Blobs with a soft blur for a cozy bloom (AI SVGs are used instead) */
+.decor-top-right, .decor-bottom-left {
+  display: none !important;
+}
+
+
+
+
+
+/* ── AI-Generated SVG Decoration Slots ──────────────────────────── */
+/* Activated when AI SVGs have been generated for this theme.        */
+
+.decor-ai-corner-tr,
+.decor-ai-corner-bl {
+  display: block;
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--secondary-color);
+  opacity: 0.85;
+}
+
+.decor-ai-corner-tr { top: 0; right: 0; }
+.decor-ai-corner-bl { bottom: 0; left: 0; }
+
+.decor-ai-corner-tr svg,
+.decor-ai-corner-bl svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-border {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  color: var(--secondary-color);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.decor-ai-border svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-margin {
+  display: block;
+  position: absolute;
+  top: 12mm;
+  left: 15mm;
+  right: 15mm;
+  height: 10px;
+  pointer-events: none;
+  z-index: 5;
+  color: var(--primary-color);
+  opacity: 0.80;
+}
+
+.decor-ai-margin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-bg-pattern {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--primary-color);
+}
+
+.decor-ai-bg-pattern svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

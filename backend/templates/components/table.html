@@ -1,0 +1,66 @@
+<div class="table-block section-block">
+  <!-- Table Card Wrapper -->
+  <div class="card table-card-wrapper">
+    <table class="data-matrix-table">
+      {{tableContent}}
+    </table>
+  </div>
+</div>
+
+<style>
+  .table-block {
+    width: 100%;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .table-card-wrapper {
+    width: 100%;
+    padding: 0; /* Clear padding for border alignment */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: var(--card-border, 1px solid var(--border-color));
+    background-color: var(--card-bg);
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+    margin-bottom: 0 !important;
+    flex-grow: 1;
+  }
+  
+  .data-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 12.5px;
+    flex-grow: 1;
+  }
+  
+  .data-matrix-table th {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border-color);
+  }
+  
+  .data-matrix-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    vertical-align: top;
+    line-height: 1.45;
+  }
+  
+  /* Alternating Row Coloring */
+  .data-matrix-table tbody tr:nth-child(even) {
+    background-color: var(--soft-fill);
+  }
+  
+  .data-matrix-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+</style>

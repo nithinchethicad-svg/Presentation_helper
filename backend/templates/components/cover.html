@@ -1,0 +1,108 @@
+<div class="page cover-page">
+  <!-- Top decorative accent -->
+  <div class="margin-accent"></div>
+
+  <div class="cover-content">
+    <div class="cover-branding">
+      <span class="branding-tag">{{date}}</span>
+    </div>
+    
+    <h1 class="cover-title">{{title}}</h1>
+    
+    <div class="cover-divider"></div>
+    
+    <p class="cover-subtitle">{{subtitle}}</p>
+    
+    <div class="cover-meta">
+      <div class="meta-item">
+        <span class="meta-label">Presented By</span>
+        <span class="meta-value">{{author}}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom decorative accent -->
+  <div class="margin-accent-bottom"></div>
+
+  <!-- Cover styles specific to cover page -->
+  <style>
+    .cover-page {
+      justify-content: center;
+      align-items: center;
+      padding: 40mm 20mm;
+      text-align: center;
+    }
+    .cover-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      flex-grow: 1;
+    }
+    .cover-branding {
+      margin-bottom: 24px;
+    }
+    .branding-tag {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--secondary-color);
+      border: 2px solid var(--secondary-color);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .cover-title {
+      font-family: var(--font-heading);
+      font-size: 38px;
+      font-weight: 900;
+      line-height: 1.2;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      max-width: 90%;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    .cover-divider {
+      width: 80px;
+      height: 4px;
+      background-color: var(--accent-color);
+      margin-bottom: 24px;
+      border-radius: 2px;
+    }
+    .cover-subtitle {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--text-color);
+      margin-bottom: 40px;
+      max-width: 85%;
+      font-weight: 500;
+      opacity: 0.9;
+    }
+    .cover-meta {
+      margin-top: 20px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+      width: 60%;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-color);
+      opacity: 0.6;
+      font-weight: 600;
+    }
+    .meta-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+  </style>
+</div>

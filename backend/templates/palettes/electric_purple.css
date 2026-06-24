@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #581c87;       /* Royal Purple */
+  --secondary-color: #6366f1;     /* Indigo Accent */
+  --accent-color: #d8b4fe;        /* Lavender */
+  --bg-color: #faf5ff;            /* Purple 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #f3e8ff;        /* Purple 100 */
+  --text-color: #1e1b4b;          /* Dark Indigo Text */
+  --soft-fill: #f3e8ff;           /* Soft Lavender Tint */
+}

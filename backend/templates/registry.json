@@ -1,0 +1,77 @@
+{
+  "CoverBlock": {
+    "description": "Use ONLY as the sole section on Page 1 to create the cover title sheet.",
+    "schema": {
+      "title": "Document main title",
+      "subtitle": "Document subtitle or descriptive tag",
+      "author": "Name of the speaker, presenter, or author",
+      "date": "Date of the presentation or event"
+    }
+  },
+  "TwoColumnBlock": {
+    "description": "Use when comparing two topics, showing pros and cons side-by-side, or presenting two lists in parallel.",
+    "schema": {
+      "leftColumnHeader": "Header for the left column card",
+      "leftColumnBullets": ["Array of bullet point strings for the left card"],
+      "rightColumnHeader": "Header for the right column card",
+      "rightColumnBullets": ["Array of bullet point strings for the right card"]
+    }
+  },
+  "MultiCardGrid": {
+    "description": "Use when you have 3 or 4 distinct, separate points, modules, or features to summarize.",
+    "schema": {
+      "cards": [
+        {
+          "header": "Individual card header title",
+          "content": "Short paragraph text or explanation for this card"
+        }
+      ]
+    }
+  },
+  "ProcessTimeline": {
+    "description": "Use for chronological timelines, step-by-step processes, sequential milestones, or flow stages. Usually occupies a full page.",
+    "schema": {
+      "steps": [
+        {
+          "stepNumber": "Label for the step (e.g., '1', '2', '01')",
+          "header": "Short title header for this step",
+          "description": "Summary explanation for this step"
+        }
+      ]
+    }
+  },
+  "DataTable": {
+    "description": "Use when slides contain tables, numerical matrices, or grid comparisons. Usually occupies a full page.",
+    "schema": {
+      "headers": ["Array of column header title strings"],
+      "rows": [
+        ["Array of strings representing cell values in a row"]
+      ]
+    }
+  },
+  "HeroCallout": {
+    "description": "Use when a slide is dominated by a single giant quote, core takeaway, high-impact statistic, or central thesis.",
+    "schema": {
+      "quoteText": "The main quote, core lesson, or high-impact takeaway statement",
+      "author": "Source, speaker, or author of the quote (optional)",
+      "highlightText": "Sub-caption, secondary note, or context about the quote"
+    }
+  },
+  "MediaBlock": {
+    "description": "Use to display an image or chart from the harvested images list alongside text.",
+    "schema": {
+      "imageId": "The image ID string (e.g. 'image_1.png') matching one of the provided harvested images",
+      "caption": "Image caption or description",
+      "resolvedClass": "Layout class: use 'float-right' (recommended) or 'float-left'",
+      "textContent": "Paragraph text explaining the slide topic, wrapping around the image",
+      "bullets": ["Array of optional supporting bullet points placed below the text"]
+    }
+  },
+  "StandardTextBlock": {
+    "description": "Use as the default layout block for standard slide summaries containing headings and bullet points.",
+    "schema": {
+      "header": "Section Header Title",
+      "bullets": ["Array of bullet point strings representing slide takeaways"]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+<svg viewBox="0 0 200 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grid lines -->
+  <line x1="0" y1="20" x2="180" y2="20" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="0" y1="60" x2="140" y2="60" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="0" y1="100" x2="100" y2="100" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="0" y1="140" x2="60" y2="140" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="180" y1="200" x2="180" y2="20" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="140" y1="200" x2="140" y2="60" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="100" y1="200" x2="100" y2="100" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <line x1="60" y1="200" x2="60" y2="140" stroke="currentColor" stroke-width="0.5" stroke-opacity="0.4"/>
+  <!-- Atomic orbits -->
+  <ellipse cx="40" cy="160" rx="35" ry="12" transform="rotate(-30, 40, 160)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.8"/>
+  <ellipse cx="40" cy="160" rx="35" ry="12" transform="rotate(30, 40, 160)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.8"/>
+  <!-- Nucleus -->
+  <circle cx="40" cy="160" r="6" fill="currentColor" fill-opacity="0.95"/>
+  <circle cx="15" cy="145" r="3" fill="currentColor" fill-opacity="0.85"/>
+  <circle cx="65" cy="175" r="3" fill="currentColor" fill-opacity="0.85"/>
+</svg>

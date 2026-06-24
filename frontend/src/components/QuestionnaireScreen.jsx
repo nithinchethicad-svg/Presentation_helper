@@ -33,14 +33,16 @@ const SETTING_OPTIONS = [
 ];
 
 const COLOR_SCHEMES = [
-  { value: 'Cool Tech (Indigo & Slate)',         label: 'Cool Tech',       desc: 'Slate with indigo accents',    previewClass: 'preview-cool-tech' },
-  { value: 'Warm Corporate (Amber & Charcoal)',  label: 'Warm Corporate',  desc: 'Charcoal & warm gold',         previewClass: 'preview-warm-corporate' },
-  { value: 'Sleek Dark Mode (Midnight Blue)',    label: 'Sleek Dark',      desc: 'Neon on dark background',      previewClass: 'preview-sleek-dark' },
-  { value: 'Vibrant Modern (Teal & Emerald)',    label: 'Vibrant Modern',  desc: 'Fresh mint & ocean teal',      previewClass: 'preview-vibrant-modern' },
-  { value: 'Ocean Breeze',                       label: 'Ocean Breeze',    desc: 'Deep navy & sky blue',         previewClass: 'preview-ocean-breeze' },
-  { value: 'Sunset Glow',                        label: 'Sunset Glow',     desc: 'Rose & warm coral tones',      previewClass: 'preview-sunset-glow' },
-  { value: 'Monochrome',                         label: 'Monochrome',      desc: 'Clean black, white & grey',    previewClass: 'preview-monochrome' },
-  { value: 'Auto-Extract Theme',                 label: 'Auto-Extract',    desc: 'Match colours from your files', previewClass: 'preview-auto-extract' },
+  { value: 'Corporate Navy',    label: 'Corporate Navy',    desc: 'Deep navy & royal blue',      previewClass: 'preview-corporate-navy' },
+  { value: 'Warm Forest',       label: 'Warm Forest',       desc: 'Forest green & moss emerald', previewClass: 'preview-warm-forest' },
+  { value: 'Electric Purple',   label: 'Electric Purple',   desc: 'Royal purple & indigo neon',  previewClass: 'preview-electric-purple' },
+  { value: 'Sunset Amber',      label: 'Sunset Amber',      desc: 'Terracotta rust & warm orange',previewClass: 'preview-sunset-amber' },
+  { value: 'Elegant Charcoal',  label: 'Elegant Charcoal',  desc: 'Charcoal gray & antique gold', previewClass: 'preview-elegant-charcoal' },
+  { value: 'Midnight Teal',     label: 'Midnight Teal',     desc: 'Deep ocean teal & fresh mint', previewClass: 'preview-midnight-teal' },
+  { value: 'Crimson Gold',      label: 'Crimson Gold',      desc: 'Deep crimson & amber gold',   previewClass: 'preview-crimson-gold' },
+  { value: 'Nordic Sage',       label: 'Nordic Sage',       desc: 'Earthy sage green & eucalyptus',previewClass: 'preview-nordic-sage' },
+  { value: 'Cyberpunk Neon',    label: 'Cyberpunk Neon',    desc: 'Matte dark carbon & hot pink', previewClass: 'preview-cyberpunk-neon' },
+  { value: 'Vintage Cream',     label: 'Vintage Cream',     desc: 'Warm vanilla sepia & ivory',  previewClass: 'preview-vintage-cream' },
 ];
 
 const VIBE_THEMES = [

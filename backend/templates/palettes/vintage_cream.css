@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #451a03;       /* Espresso Sepia */
+  --secondary-color: #ca8a04;     /* Ochre Gold */
+  --accent-color: #eab308;        /* Vintage Gold */
+  --bg-color: #fffbeb;            /* Vanilla Cream */
+  --card-bg: #fefcbf;             /* Ivory Parchment Card */
+  --border-color: #fed7aa;        /* Warm Peach Border */
+  --text-color: #3f220f;          /* Espresso Dark Text */
+  --soft-fill: #fef08a;           /* Soft Ochre Tint */
+}

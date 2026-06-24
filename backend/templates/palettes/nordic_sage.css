@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #3f4e3f;       /* Deep Sage Green */
+  --secondary-color: #6b8e23;     /* Eucalyptus Olive */
+  --accent-color: #8fbc8f;        /* Soft Sea Green */
+  --bg-color: #f4f6f4;            /* Soft Earthy Gray */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #d1dcd1;        /* Sage 200 */
+  --text-color: #1b241c;          /* Dark Pine Text */
+  --soft-fill: #e8eee8;           /* Soft Sage Tint */
+}

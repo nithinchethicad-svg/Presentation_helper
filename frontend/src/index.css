@@ -318,29 +318,35 @@ body {
   width: 100%;
 }
 
-.preview-cool-tech {
-  background: linear-gradient(135deg, #6366f1 0%, #475569 100%);
+.preview-corporate-navy {
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
 }
-.preview-warm-corporate {
-  background: linear-gradient(135deg, #f59e0b 0%, #1e293b 100%);
+.preview-warm-forest {
+  background: linear-gradient(135deg, #14532d 0%, #22c55e 100%);
 }
-.preview-sleek-dark {
-  background: linear-gradient(135deg, #0f172a 0%, #38bdf8 100%);
+.preview-electric-purple {
+  background: linear-gradient(135deg, #581c87 0%, #6366f1 100%);
 }
-.preview-vibrant-modern {
-  background: linear-gradient(135deg, #14b8a6 0%, #10b981 100%);
+.preview-sunset-amber {
+  background: linear-gradient(135deg, #9a3412 0%, #ea580c 100%);
 }
-.preview-ocean-breeze {
-  background: linear-gradient(135deg, #1e3a8a 0%, #38bdf8 100%);
+.preview-elegant-charcoal {
+  background: linear-gradient(135deg, #27272a 0%, #d4af37 100%);
 }
-.preview-sunset-glow {
-  background: linear-gradient(135deg, #f43f5e 0%, #fda4af 100%);
+.preview-midnight-teal {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
 }
-.preview-monochrome {
-  background: linear-gradient(135deg, #0f172a 0%, #64748b 50%, #e2e8f0 100%);
+.preview-crimson-gold {
+  background: linear-gradient(135deg, #881337 0%, #b45309 100%);
 }
-.preview-auto-extract {
-  background: linear-gradient(135deg, #ff007f 0%, #ff7f00 33%, #00ff7f 66%, #007fff 100%);
+.preview-nordic-sage {
+  background: linear-gradient(135deg, #3f4e3f 0%, #6b8e23 100%);
+}
+.preview-cyberpunk-neon {
+  background: linear-gradient(135deg, #0a0a0c 0%, #ff007f 50%, #00f0ff 100%);
+}
+.preview-vintage-cream {
+  background: linear-gradient(135deg, #451a03 0%, #ca8a04 100%);
 }
 
 .theme-title {

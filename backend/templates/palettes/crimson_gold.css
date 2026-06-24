@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #881337;       /* Deep Crimson */
+  --secondary-color: #b45309;     /* Antique Amber Gold */
+  --accent-color: #f43f5e;        /* Rose Accent */
+  --bg-color: #fff1f2;            /* Rose 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #fecdd3;        /* Rose 200 */
+  --text-color: #4c0519;          /* Dark Crimson Text */
+  --soft-fill: #fff7ed;           /* Soft Gold-Cream Tint */
+}

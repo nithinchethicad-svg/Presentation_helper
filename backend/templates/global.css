@@ -1,0 +1,263 @@
+/* Core Global Stylesheet for Virtual Matrix A4 Layouts */
+
+/* CSS Resets & Box Model */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body, 'Inter', sans-serif);
+  color: var(--text-color, #1e293b);
+  background-color: #f1f5f9; /* Visual fallback for browser preview */
+  line-height: var(--line-height-body, 1.5);
+  font-size: 14px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Default Fallback Tokens (Overridden dynamically by Theme & Palette) */
+:root {
+  --font-heading: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --card-radius: 8px;
+  --card-padding: 20px;
+  --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --line-height-body: 1.5;
+
+  --primary-color: #1e3a8a;
+  --secondary-color: #3b82f6;
+  --accent-color: #ef4444;
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --text-color: #0f172a;
+  --soft-fill: #eff6ff;
+}
+
+/* A4 Page Container Constraint */
+.page {
+  width: 210mm;
+  height: 297mm;
+  background-color: var(--bg-color);
+  padding: 20mm 15mm 20mm 15mm; /* Standard margins */
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  margin: 10px auto; /* Centering pages in browser view */
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); /* Preview shadow */
+  page-break-after: always;
+  page-break-inside: avoid;
+}
+
+/* Print Specific Rules */
+@media print {
+  @page {
+    margin: 0;
+  }
+  body {
+    background-color: #ffffff;
+  }
+  .page {
+    margin: 0 !important;
+    box-shadow: none !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+/* Header & Title Hierarchy */
+.page-header {
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--primary-color);
+  padding-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.page-title {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.page-subtitle {
+  font-size: 12px;
+  color: var(--secondary-color);
+  font-weight: 600;
+}
+
+/* Page Footer with Dynamic Page Numbering */
+.page-footer {
+  position: absolute;
+  bottom: 12mm;
+  left: 15mm;
+  right: 15mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  padding-top: 6px;
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.page-footer-left {
+  font-weight: 500;
+}
+
+.page-number {
+  font-weight: 700;
+}
+
+/* General Layout Shapes: Cards & Callouts */
+.card {
+  background-color: var(--card-bg);
+  border: var(--card-border, 1px solid var(--border-color));
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--card-shadow);
+  margin-bottom: 16px;
+  position: relative;
+  min-height: 50px;
+  height: auto;
+}
+
+.card-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+}
+
+/* Typography elements */
+p, li {
+  font-size: 14px;
+  line-height: var(--line-height-body);
+  color: var(--text-color);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+ul, ol {
+  padding-left: 20px;
+  margin-bottom: 10px;
+}
+
+li {
+  margin-bottom: 6px;
+}
+
+/* Bullet Point Styling override if needed */
+.bullet-list li {
+  list-style-type: square;
+  color: var(--text-color);
+}
+
+.bullet-list li::marker {
+  color: var(--secondary-color);
+}
+
+/* Decorative Accent elements (placed at margins) */
+.margin-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  z-index: 10;
+}
+
+.margin-accent-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(90deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+  z-index: 10;
+}
+
+/* Base Page Decorations (Hidden by default, enabled selectively by Vibe Themes) */
+.page-decorations {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Prevent blocking clicks */
+  z-index: 1;
+}
+
+.decor-spiral-binder {
+  display: none;
+}
+
+.decor-top-right {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 180px;
+  height: 180px;
+  z-index: 1;
+}
+
+.decor-bottom-left {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  z-index: 1;
+}
+
+/* Hide all individual vector path assets by default */
+.decor-blob, .decor-star, .decor-hud, .decor-flourish {
+  display: none;
+}
+
+/* Detailed vector sub-elements styled globally for consistent rendering */
+.decor-star-circle {
+  fill: none;
+  stroke: var(--secondary-color);
+  stroke-width: 1.5px;
+  stroke-dasharray: 4, 4;
+}
+
+.decor-star-cross {
+  stroke: var(--border-color);
+  stroke-width: 1px;
+  opacity: 0.25;
+}
+
+.decor-hud-bracket {
+  fill: none;
+  stroke: var(--primary-color);
+  stroke-width: 1.5px;
+  stroke-dasharray: 10, 5;
+}
+
+.decor-hud-dot {
+  fill: var(--accent-color);
+  filter: drop-shadow(0 0 2px var(--accent-color));
+}
+
+

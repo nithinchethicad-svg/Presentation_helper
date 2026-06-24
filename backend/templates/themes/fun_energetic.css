@@ -1,0 +1,317 @@
+:root {
+  --font-heading: 'Rock Salt', 'Space Grotesk', 'Montserrat', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --card-radius: 12px;
+  --card-padding: 22px;
+  --card-shadow: 6px 6px 0px var(--text-color, #0f172a);
+  --card-border: 3px solid var(--text-color, #0f172a);
+  --line-height-body: 1.55;
+}
+
+/* Page Dotted Grid Paper Pattern (High Contrast) */
+.page {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.15) 1.5px, transparent 1.5px) !important;
+  background-size: 16px 16px !important;
+  background-color: var(--bg-color, #f8fafc) !important;
+}
+
+/* Neobrutalist Double Frame with Corner Badges */
+.page::after {
+  content: "";
+  position: absolute;
+  top: 8mm;
+  left: 8mm;
+  right: 8mm;
+  bottom: 8mm;
+  border: 4px double var(--text-color, #0f172a);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.page::before {
+  content: "";
+  position: absolute;
+  top: 8mm;
+  left: 8mm;
+  right: 8mm;
+  bottom: 8mm;
+  /* Four solid 16px corner square badges */
+  background: 
+    linear-gradient(var(--text-color, #0f172a), var(--text-color, #0f172a)) left top / 16px 16px,
+    linear-gradient(var(--text-color, #0f172a), var(--text-color, #0f172a)) right top / 16px 16px,
+    linear-gradient(var(--text-color, #0f172a), var(--text-color, #0f172a)) left bottom / 16px 16px,
+    linear-gradient(var(--text-color, #0f172a), var(--text-color, #0f172a)) right bottom / 16px 16px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Fun & Energetic Neobrutalism Accents - Clean Header without dividing lines */
+.page-header {
+  border-bottom: none !important;
+  margin-bottom: 24px !important;
+  padding-bottom: 0px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.page-footer {
+  border-top: none !important;
+  padding-top: 0px !important;
+}
+
+/* WordArt: Comic-strip title with a thin outline, flat shadow, and no rotation (highly legible) */
+.page-title {
+  font-family: var(--font-heading) !important;
+  font-size: 25px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: none !important;
+  color: var(--text-color, #0f172a) !important;
+  -webkit-text-stroke: 0px !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  filter: drop-shadow(2px 2px 0px var(--primary-color)) !important;
+  transform: none !important;
+  display: inline-block !important;
+}
+
+.page-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  color: var(--text-color) !important;
+  margin-left: auto;
+  transform: none !important;
+}
+
+/* Cover Page Typography & Pop Stickers */
+.cover-title {
+  font-family: var(--font-heading) !important;
+  font-size: 36px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: none !important;
+  color: var(--text-color, #0f172a) !important;
+  -webkit-text-stroke: 0px !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  filter: drop-shadow(3px 3px 0px var(--primary-color)) !important;
+  transform: none !important;
+  display: inline-block !important;
+  margin-bottom: 28px !important;
+}
+
+.cover-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 16px !important;
+  color: var(--text-color) !important;
+  font-weight: 700 !important;
+  opacity: 0.9 !important;
+}
+
+.branding-tag {
+  font-family: var(--font-heading) !important;
+  font-weight: 800 !important;
+  color: var(--primary-color) !important;
+  border: 3px solid var(--text-color, #0f172a) !important;
+  border-radius: 8px !important;
+  box-shadow: 2px 2px 0px var(--text-color, #0f172a) !important;
+}
+
+.meta-value {
+  color: var(--primary-color) !important;
+}
+
+/* Stylized Lightning Bolt Cover Divider Symbol */
+.cover-divider {
+  width: 120px !important;
+  height: auto !important;
+  background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--primary-color) !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-divider::before {
+  content: "⚡" !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+}
+
+/* Neobrutalism Cards with thick black borders and flat offset solid shadows */
+.card {
+  background-color: var(--card-bg, #ffffff);
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow) !important;
+  padding: var(--card-padding) !important;
+  margin-bottom: 20px !important;
+}
+
+/* Sticker badge card titles */
+.card-title {
+  font-family: var(--font-heading) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  background-color: var(--primary-color) !important;
+  padding: 6px 12px !important;
+  border: 2px solid var(--text-color, #0f172a) !important;
+  border-radius: 6px !important;
+  box-shadow: 3px 3px 0px var(--text-color, #0f172a) !important;
+  display: inline-block !important;
+  text-transform: none !important;
+  margin-bottom: 16px !important;
+  transform: none !important;
+}
+
+/* Lightning Bolt Bullet Symbol */
+.bullet-list li, .two-column-list li {
+  list-style: none !important;
+  position: relative;
+  padding-left: 22px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 13.5px !important;
+}
+
+.bullet-list li::before, .two-column-list li::before {
+  content: "⚡" !important;
+  position: absolute;
+  left: 0;
+  top: 1px;
+  color: var(--primary-color);
+  font-size: 13px;
+}
+
+/* Page margin stripes */
+.margin-accent {
+  height: 10px !important;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--primary-color),
+    var(--primary-color) 10px,
+    var(--text-color, #0f172a) 10px,
+    var(--text-color, #0f172a) 20px
+  ) !important;
+  z-index: 10;
+}
+
+.margin-accent-bottom {
+  height: 10px !important;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--secondary-color),
+    var(--secondary-color) 10px,
+    var(--text-color, #0f172a) 10px,
+    var(--text-color, #0f172a) 20px
+  ) !important;
+  z-index: 10;
+}
+
+/* Disable Latent Corner Neobrutalist Stars with thick outlines (AI SVGs are used instead) */
+.decor-top-right, .decor-bottom-left {
+  display: none !important;
+}
+
+
+.decor-star-circle {
+  display: block !important;
+  stroke: var(--primary-color) !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 4 !important;
+}
+
+.decor-star-cross {
+  display: block !important;
+  stroke: var(--text-color, #0f172a) !important;
+  stroke-width: 1.5px !important;
+  opacity: 0.4 !important;
+}
+
+
+
+
+/* ── AI-Generated SVG Decoration Slots ──────────────────────────── */
+/* Activated when AI SVGs have been generated for this theme.        */
+
+.decor-ai-corner-tr,
+.decor-ai-corner-bl {
+  display: block;
+  position: absolute;
+  width: 185px;
+  height: 185px;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--primary-color);
+  opacity: 0.85;
+}
+
+.decor-ai-corner-tr { top: 0; right: 0; }
+.decor-ai-corner-bl { bottom: 0; left: 0; }
+
+.decor-ai-corner-tr svg,
+.decor-ai-corner-bl svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-border {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  color: var(--primary-color);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.decor-ai-border svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-margin {
+  display: block;
+  position: absolute;
+  top: 12mm;
+  left: 15mm;
+  right: 15mm;
+  height: 10px;
+  pointer-events: none;
+  z-index: 5;
+  color: var(--secondary-color);
+  opacity: 0.80;
+}
+
+.decor-ai-margin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-bg-pattern {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--primary-color);
+}
+
+.decor-ai-bg-pattern svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

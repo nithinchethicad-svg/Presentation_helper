@@ -1,0 +1,7 @@
+<svg viewBox="0 0 800 40" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <line x1="0" y1="20" x2="800" y2="20" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.8"/>
+  <!-- Chevron triangles -->
+  <polygon points="390,10 405,20 390,30" fill="currentColor" fill-opacity="0.95"/>
+  <polygon points="405,10 420,20 405,30" fill="currentColor" fill-opacity="0.75"/>
+  <polygon points="420,10 435,20 420,30" fill="currentColor" fill-opacity="0.45"/>
+</svg>

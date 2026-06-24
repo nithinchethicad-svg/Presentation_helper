@@ -1,0 +1,103 @@
+<div class="callout-block section-block">
+  <!-- Central Callout Card -->
+  <div class="card callout-card">
+    <div class="quote-icon-open">“</div>
+    
+    <div class="callout-quote-body">
+      <p class="callout-quote-text">{{quoteText}}</p>
+      <p class="callout-quote-author">— {{author}}</p>
+    </div>
+    
+    <div class="quote-icon-close">”</div>
+  </div>
+
+  <!-- Highlight Box -->
+  <div class="card highlight-card">
+    <h4 class="card-title">Key Takeaway</h4>
+    <p class="highlight-text">{{highlightText}}</p>
+  </div>
+</div>
+
+<style>
+  .callout-block {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+  
+  .callout-card {
+    padding: 28px 24px;
+    position: relative;
+    background-color: var(--soft-fill);
+    border: none;
+    border-left: 5px solid var(--primary-color);
+    border-radius: 0 var(--card-radius) var(--card-radius) 0;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0 !important;
+  }
+  
+  .quote-icon-open {
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    font-size: 54px;
+    font-family: 'Georgia', serif;
+    color: var(--primary-color);
+    opacity: 0.15;
+    line-height: 1;
+  }
+  
+  .quote-icon-close {
+    position: absolute;
+    bottom: -15px;
+    right: 15px;
+    font-size: 54px;
+    font-family: 'Georgia', serif;
+    color: var(--primary-color);
+    opacity: 0.15;
+    line-height: 1;
+  }
+  
+  .callout-quote-body {
+    position: relative;
+    z-index: 2;
+  }
+  
+  .callout-quote-text {
+    font-size: 16px;
+    line-height: 1.55;
+    font-weight: 600;
+    color: var(--primary-color);
+    font-style: italic;
+    margin-bottom: 10px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .callout-quote-author {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .highlight-card {
+    background-color: var(--card-bg);
+    border: var(--card-border, 1px solid var(--border-color));
+    border-radius: var(--card-radius);
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 0 !important;
+  }
+  
+  .highlight-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+  }
+</style>

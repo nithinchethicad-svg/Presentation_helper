@@ -1,0 +1,10 @@
+<svg viewBox="0 0 200 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer elegant border -->
+  <polyline points="20,0 20,180 200,180" fill="none" stroke="currentColor" stroke-width="2.5" stroke-opacity="0.95"/>
+  <!-- Inner accent border -->
+  <polyline points="35,0 35,165 200,165" fill="none" stroke="currentColor" stroke-width="1.0" stroke-opacity="0.75"/>
+  <!-- Small corner diamond ornament -->
+  <polygon points="20,180 25,185 20,190 15,185" fill="currentColor" fill-opacity="0.9"/>
+  <polygon points="20,190 22,192 20,194 18,192" fill="currentColor" fill-opacity="0.6"/>
+  <polygon points="10,180 12,182 10,184 8,182" fill="currentColor" fill-opacity="0.6"/>
+</svg>

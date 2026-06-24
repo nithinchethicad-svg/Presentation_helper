@@ -4,6 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+let sharp;
+try {
+  sharp = require('sharp');
+} catch (e) {
+  // sharp is not installed, fallback gracefully to raw buffers
+}
+
 // Create directory if it doesn't exist
 const ensureDirExists = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -44,10 +51,34 @@ async function harvestMedia(fileBuffer, originalName, outputDir) {
       
       // We only want standard web-friendly image formats
       if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(fileExt)) {
-        const uniqueName = `img_${fileHash}_${filename}`;
-        const outputPath = path.join(outputDir, uniqueName);
+        const baseName = filename.substring(0, filename.lastIndexOf('.')) || filename;
+        const uniqueBaseName = `img_${fileHash}_${baseName}`;
         
-        fs.writeFileSync(outputPath, buffer);
+        let uniqueName = `${uniqueBaseName}.${fileExt}`;
+        let outputPath = path.join(outputDir, uniqueName);
+        let isCompressed = false;
+        
+        // Attempt to compress png/jpg/jpeg to WebP if sharp is available
+        if (sharp && ['png', 'jpg', 'jpeg'].includes(fileExt)) {
+          const webpName = `${uniqueBaseName}.webp`;
+          const webpPath = path.join(outputDir, webpName);
+          
+          try {
+            await sharp(buffer)
+              .webp({ quality: 85 })
+              .toFile(webpPath);
+            
+            uniqueName = webpName;
+            outputPath = webpPath;
+            isCompressed = true;
+          } catch (err) {
+            // Graceful fallback to original buffer on compression error
+          }
+        }
+        
+        if (!isCompressed) {
+          fs.writeFileSync(outputPath, buffer);
+        }
         
         // Read pixel dimensions to calculate Aspect Ratio
         let width = 800;

@@ -62,7 +62,7 @@ const SpeakerNotesScreen = ({
         <html>
         <head>
           <title>Presentation Speaker Notes</title>
-          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Georgia&display=swap">
+          <link rel="stylesheet" href="/templates/local_fonts.css">
           <style>
             html, body {
               background-color: #525659 !important;
@@ -196,6 +196,9 @@ const SpeakerNotesScreen = ({
             }
 
             @media print {
+              @page {
+                margin: 0;
+              }
               html, body {
                 background-color: white !important;
                 padding: 0 !important;

@@ -1,0 +1,13 @@
+<svg viewBox="0 0 200 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 40,200 Q 50,150 90,110 T 200,40" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-opacity="0.85"/>
+  <path d="M 10,200 Q 20,170 50,140 T 120,90" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.6"/>
+  <!-- Soft leaves -->
+  <path d="M 65,150 C 50,160 50,180 70,175 C 80,165 75,155 65,150 Z" fill="currentColor" fill-opacity="0.8"/>
+  <path d="M 95,115 C 80,120 80,140 100,135 C 105,125 100,120 95,115 Z" fill="currentColor" fill-opacity="0.8"/>
+  <path d="M 130,75 C 115,75 110,95 130,95 C 140,85 135,80 130,75 Z" fill="currentColor" fill-opacity="0.8"/>
+  <path d="M 170,50 C 155,45 150,65 170,65 C 180,55 175,50 170,50 Z" fill="currentColor" fill-opacity="0.8"/>
+  <!-- Buds -->
+  <circle cx="30" cy="180" r="5" fill="currentColor" fill-opacity="0.9"/>
+  <circle cx="40" cy="130" r="4" fill="currentColor" fill-opacity="0.75"/>
+  <circle cx="80" cy="95" r="4.5" fill="currentColor" fill-opacity="0.75"/>
+</svg>

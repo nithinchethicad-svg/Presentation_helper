@@ -181,7 +181,7 @@ const ViewerScreen = ({
         /* PRINT OVERRIDES */
         @media print {
           @page {
-            margin: 0 !important;
+            margin: 0;
           }
           body {
             margin: 0 !important;

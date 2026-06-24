@@ -1,0 +1,94 @@
+<div class="timeline-block section-block">
+  <div class="timeline-body-wrapper">
+    <div class="timeline-line"></div>
+    <div class="timeline-content">
+      {{timelineSteps}}
+    </div>
+  </div>
+</div>
+
+<style>
+  .timeline-block {
+    width: 100%;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .timeline-body-wrapper {
+    position: relative;
+    width: 100%;
+    padding-left: 30px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  
+  .timeline-line {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    bottom: 15px;
+    width: 2px;
+    background-color: var(--secondary-color);
+    opacity: 0.5;
+    z-index: 1;
+  }
+  
+  .timeline-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    gap: 12px;
+    z-index: 2;
+    flex-grow: 1;
+  }
+  
+  .timeline-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .timeline-badge {
+    position: absolute;
+    left: -29px;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    border: 2px solid var(--bg-color);
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+  
+  .timeline-card {
+    background-color: var(--card-bg);
+    border: var(--card-border, 1px solid var(--border-color));
+    border-radius: var(--card-radius);
+    padding: 12px 16px;
+    box-shadow: var(--card-shadow);
+    margin-left: 10px;
+  }
+  
+  .timeline-card-header {
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+  }
+  
+  .timeline-card-desc {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-color);
+  }
+</style>

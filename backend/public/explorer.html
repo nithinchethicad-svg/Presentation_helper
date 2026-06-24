@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Matrix Template Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-explorer: #0f172a;
+      --panel-bg: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-explorer);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Control Bar */
+    .header-bar {
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .branding {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background-color: var(--accent);
+      color: white;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .title-group h1 {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Controls Grid */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .control-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .select-input {
+      background-color: var(--bg-explorer);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 180px;
+    }
+
+    .select-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-print {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+      height: 38px;
+      margin-top: 14px;
+    }
+
+    .btn-print:hover {
+      background-color: var(--accent-hover);
+    }
+
+    /* Scaling Control */
+    .scale-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    /* Dashboard Layout Main */
+    .explorer-main {
+      flex-grow: 1;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .explorer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+      gap: 32px;
+      width: 100%;
+      max-width: 1600px;
+    }
+
+    /* Template Card Layout */
+    .template-card {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .template-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+    }
+
+    .card-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .preset-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background-color: rgba(59, 130, 246, 0.1);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .preset-title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    /* Iframe Wrapper to handle A4 ratio and scaling */
+    .iframe-wrapper {
+      width: 100%;
+      position: relative;
+      background-color: #f1f5f9;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.1);
+      aspect-ratio: 210 / 297; /* A4 Ratio */
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .preview-iframe {
+      width: 210mm;
+      height: 297mm;
+      border: none;
+      background-color: white;
+      transform-origin: top left;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* Card Footer Actions */
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .btn-action {
+      background: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-action:hover {
+      border-color: var(--text-main);
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Control Bar -->
+  <header class="header-bar">
+    <div class="branding">
+      <div class="logo-badge">Virtual Matrix</div>
+      <div class="title-group">
+        <h1>Takeaway Notes Template Explorer</h1>
+        <p>Preview 7 master A4 print-safe layouts across 6 Themes & 10 Palettes</p>
+      </div>
+    </div>
+
+    <!-- Active Selection Controls -->
+    <div class="controls">
+      
+      <div class="control-group">
+        <label class="control-label" for="theme-select">Vibe Theme (Y-Axis)</label>
+        <select id="theme-select" class="select-input">
+          <option value="formal_professional">🏛️ Formal & Professional</option>
+          <option value="warm_encouraging">🌸 Warm & Encouraging</option>
+          <option value="fun_energetic">⚡ Fun & Energetic</option>
+          <option value="reflective_thoughtful">🌿 Reflective & Thoughtful</option>
+          <option value="educational_informative">📚 Educational & Informative</option>
+          <option value="motivational_inspiring">🚀 Motivational & Inspiring</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="palette-select">Color Palette (X-Axis)</label>
+        <select id="palette-select" class="select-input">
+          <option value="corporate_navy">Corporate Navy</option>
+          <option value="warm_forest">Warm Forest</option>
+          <option value="electric_purple">Electric Purple</option>
+          <option value="sunset_amber">Sunset Amber</option>
+          <option value="elegant_charcoal">Elegant Charcoal</option>
+          <option value="midnight_teal">Midnight Teal</option>
+          <option value="crimson_gold">Crimson Gold</option>
+          <option value="nordic_sage">Nordic Sage</option>
+          <option value="cyberpunk_neon">Cyberpunk Neon</option>
+          <option value="vintage_cream">Vintage Cream</option>
+        </select>
+      </div>
+
+      <div class="scale-control">
+        <div class="control-group">
+          <label class="control-label" for="zoom-select">Zoom Scale</label>
+          <select id="zoom-select" class="select-input" style="min-width: 80px;">
+            <option value="0.4">40%</option>
+            <option value="0.5" selected>50%</option>
+            <option value="0.6">60%</option>
+            <option value="0.75">75%</option>
+            <option value="1.0">100%</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="btn-print-test" class="btn-print">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"></polyline>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+        Test Print A4
+      </button>
+
+    </div>
+  </header>
+
+  <!-- Main Grid Display -->
+  <main class="explorer-main">
+    <div class="explorer-grid" id="explorer-grid">
+      <!-- Generated programmatically in JS -->
+    </div>
+  </main>
+
+  <script>
+    const PRESETS = [
+      { id: 'CoverPage', title: 'Cover Title Page', file: 'cover' },
+      { id: 'TwoColumnSplit', title: 'Two-Column Split Card', file: 'two_column' },
+      { id: 'MultiCardGrid', title: '2x2 Info Matrix Grid', file: 'grid' },
+      { id: 'ProcessTimeline', title: 'Milestone Step Timeline', file: 'timeline' },
+      { id: 'DataTable', title: 'Alternating Data Table', file: 'table' },
+      { id: 'HeroCallout', title: 'Hero Quote & Callout', file: 'callout' },
+      { id: 'MixedMedia', title: 'Floated Text-Image Wrap', file: 'media_wrapped' }
+    ];
+
+    const themeSelect = document.getElementById('theme-select');
+    const paletteSelect = document.getElementById('palette-select');
+    const zoomSelect = document.getElementById('zoom-select');
+    const gridContainer = document.getElementById('explorer-grid');
+    const btnPrintTest = document.getElementById('btn-print-test');
+
+    // Build the grid of A4 layouts
+    function buildGrid() {
+      gridContainer.innerHTML = '';
+      
+      PRESETS.forEach(preset => {
+        const card = document.createElement('div');
+        card.className = 'template-card';
+        
+        card.innerHTML = `
+          <div class="card-header-bar">
+            <span class="preset-title">${preset.title}</span>
+            <span class="preset-badge">${preset.id}</span>
+          </div>
+          
+          <div class="iframe-wrapper" id="wrapper-${preset.file}">
+            <iframe 
+              id="iframe-${preset.file}" 
+              class="preview-iframe" 
+              src=""
+              title="${preset.title} Preview"
+            ></iframe>
+          </div>
+          
+          <div class="card-footer">
+            <span style="color: var(--text-muted);">A4 Sheet Preview</span>
+            <button class="btn-action" onclick="openPreset('${preset.file}')">Open Fullscreen</button>
+          </div>
+        `;
+        
+        gridContainer.appendChild(card);
+      });
+      
+      updatePreviews();
+      updateScales();
+    }
+
+    // Refresh all iframe sources based on selections
+    function updatePreviews() {
+      const theme = themeSelect.value;
+      const palette = paletteSelect.value;
+      
+      PRESETS.forEach(preset => {
+        const iframe = document.getElementById(`iframe-${preset.file}`);
+        if (iframe) {
+          iframe.src = `/api/templates/preview?preset=${preset.id}&theme=${theme}&palette=${palette}`;
+        }
+      });
+    }
+
+    // Calculate and apply scaling for CSS transforms
+    function updateScales() {
+      const scale = parseFloat(zoomSelect.value);
+      
+      PRESETS.forEach(preset => {
+        const wrapper = document.getElementById(`wrapper-${preset.file}`);
+        const iframe = document.getElementById(`iframe-${preset.file}`);
+        
+        if (wrapper && iframe) {
+          // Standard A4 width: 210mm (~794px at 96dpi), height: 297mm (~1123px)
+          const a4Width = 793.7; // px
+          const a4Height = 1122.5; // px
+          
+          // Scale the wrapper box size accordingly
+          wrapper.style.width = `${a4Width * scale}px`;
+          wrapper.style.height = `${a4Height * scale}px`;
+          
+          // Apply scale transform to the iframe itself
+          iframe.style.width = `${a4Width}px`;
+          iframe.style.height = `${a4Height}px`;
+          iframe.style.transform = `scale(${scale})`;
+        }
+      });
+    }
+
+    // Open single preset in new tab
+    window.openPreset = function(presetFile) {
+      const theme = themeSelect.value;
+      const palette = paletteSelect.value;
+      const url = `/api/templates/preview?preset=${PRESETS.find(p => p.file === presetFile).id}&theme=${theme}&palette=${palette}`;
+      window.open(url, '_blank');
+    };
+
+    // Print event
+    btnPrintTest.addEventListener('click', () => {
+      // Trigger browser print dialog for the entire grid or single page
+      // To test A4 prints, opening fullscreen first is recommended
+      const activeTheme = themeSelect.value;
+      const activePalette = paletteSelect.value;
+      const printWindow = window.open(`/api/templates/preview?preset=TwoColumnSplit&theme=${activeTheme}&palette=${activePalette}`, '_blank');
+      printWindow.addEventListener('load', () => {
+        printWindow.print();
+      }, true);
+    });
+
+    // Event Listeners
+    themeSelect.addEventListener('change', updatePreviews);
+    paletteSelect.addEventListener('change', updatePreviews);
+    zoomSelect.addEventListener('change', updateScales);
+
+    // Initial Load
+    buildGrid();
+
+    // Hot-reload watcher: Poll server every 3 seconds to check for style modifications
+    let hash = '';
+    async function checkHotReload() {
+      try {
+        const res = await fetch('/api/templates/presets');
+        const data = await res.json();
+        const currentHash = JSON.stringify(data);
+        if (hash && hash !== currentHash) {
+          updatePreviews();
+        }
+        hash = currentHash;
+      } catch (e) {
+        // ignore
+      }
+    }
+    setInterval(checkHotReload, 3000);
+  </script>
+</body>
+</html>

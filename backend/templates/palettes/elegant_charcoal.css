@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #27272a;       /* Dark Charcoal */
+  --secondary-color: #d4af37;     /* Antique Gold */
+  --accent-color: #a1a1aa;        /* Medium Zinc Gray */
+  --bg-color: #fafafa;            /* Zinc 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #e4e4e7;        /* Zinc 200 */
+  --text-color: #18181b;          /* Zinc 900 */
+  --soft-fill: #f4f4f5;           /* Soft Silver Tint */
+}

@@ -1,0 +1,8 @@
+<svg viewBox="0 0 24 24" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="fun-bg-tile" patternUnits="userSpaceOnUse" width="24" height="24">
+      <circle cx="12" cy="12" r="2.2" fill="currentColor" fill-opacity="0.035"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#fun-bg-tile)"/>
+</svg>

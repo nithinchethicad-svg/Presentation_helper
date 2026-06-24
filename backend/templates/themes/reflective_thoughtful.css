@@ -1,0 +1,269 @@
+:root {
+  --font-heading: 'Cormorant Garamond', 'Lora', 'Playfair Display', serif;
+  --font-body: 'Lora', serif;
+  --card-radius: 0px;
+  --card-padding: 28px;
+  --card-shadow: none;
+  --card-border: 1px solid rgba(15, 23, 42, 0.08);
+  --line-height-body: 1.75;
+}
+
+/* Warm Linen Paper Background */
+.page {
+  background-color: var(--bg-color) !important;
+}
+
+/* Vintage Book Gutter Side Borders - delicate double vertical lines in the left margin */
+.page::after {
+  content: "";
+  position: absolute;
+  top: 15mm;
+  bottom: 15mm;
+  left: 12mm;
+  width: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Reflective & Thoughtful Spacious Accents - Clean Header without dividing lines */
+.page-header {
+  border-bottom: none !important;
+  margin-bottom: 26px !important;
+  padding-bottom: 0px !important;
+}
+
+.page-footer {
+  border-top: none !important;
+  padding-top: 0px !important;
+}
+
+/* WordArt: Deep dynamic literary gradient with a classic white offset outline and soft shadow (elegant italic) */
+.page-title {
+  font-family: var(--font-heading) !important;
+  font-size: 24px !important;
+  font-weight: 600 !important;
+  font-style: italic !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(1px 1px 0px #ffffff) drop-shadow(3px 3px 0px color-mix(in srgb, var(--primary-color) 8%, transparent)) !important;
+  display: inline-block !important;
+}
+
+.page-subtitle {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.05em;
+  color: var(--secondary-color);
+  opacity: 0.8;
+}
+
+/* Cover Page Typography & Literary Italics */
+.cover-title {
+  font-family: var(--font-heading) !important;
+  font-size: 38px !important;
+  font-weight: 600 !important;
+  font-style: italic !important;
+  line-height: 1.25 !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(1px 1px 0px #ffffff) drop-shadow(4px 4px 0px color-mix(in srgb, var(--primary-color) 8%, transparent)) !important;
+  display: inline-block !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 16px !important;
+  color: var(--text-color) !important;
+  font-weight: 500 !important;
+  opacity: 0.85 !important;
+}
+
+.branding-tag {
+  font-family: var(--font-heading) !important;
+  font-style: italic !important;
+  font-weight: 600 !important;
+  color: var(--primary-color) !important;
+  border-color: color-mix(in srgb, var(--primary-color) 30%, transparent) !important;
+  border-radius: 4px !important;
+}
+
+.meta-value {
+  color: var(--primary-color) !important;
+}
+
+/* Stylized Floral Vine Heart Cover Divider Symbol */
+.cover-divider {
+  width: 120px !important;
+  height: auto !important;
+  background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--primary-color) !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-divider::before {
+  content: "❦" !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+}
+
+/* Minimalist square cards with ultra-thin borders and wide paddings */
+.card {
+  background-color: var(--card-bg, #ffffff);
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: none !important;
+  padding: var(--card-padding) !important;
+  margin-bottom: 20px !important;
+}
+
+.card-title {
+  font-family: var(--font-heading) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  font-style: italic !important;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--primary-color) 8%, transparent) !important;
+  padding-bottom: 8px !important;
+  text-transform: none;
+  color: var(--primary-color);
+  margin-bottom: 12px !important;
+}
+
+/* Drop-caps on description texts for editorial magazine feel */
+.media-description-text::first-letter, .highlight-text::first-letter, .standard-text-card p::first-letter {
+  font-size: 3.5em;
+  float: left;
+  line-height: 0.85;
+  padding-right: 10px;
+  padding-top: 4px;
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Elegant Thin Dash Bullet Point Indicators */
+.bullet-list li, .two-column-list li {
+  list-style: none !important;
+  position: relative;
+  padding-left: 18px;
+  margin-bottom: 8px;
+  font-size: 13.5px !important;
+}
+
+.bullet-list li::before, .two-column-list li::before {
+  content: "—" !important;
+  position: absolute;
+  left: 0;
+  top: 0px;
+  color: var(--secondary-color);
+  font-weight: 300;
+}
+
+/* Minimal page accents */
+.margin-accent {
+  height: 4px !important;
+  background: var(--primary-color) !important;
+  z-index: 10;
+}
+
+.margin-accent-bottom {
+  height: 4px !important;
+  background: var(--secondary-color) !important;
+  z-index: 10;
+}
+
+/* Disable Latent Classic Flourish SVGs in the corners (AI SVGs are used instead) */
+.decor-top-right, .decor-bottom-left {
+  display: none !important;
+}
+
+
+
+
+
+/* ── AI-Generated SVG Decoration Slots ──────────────────────────── */
+/* Activated when AI SVGs have been generated for this theme.        */
+
+.decor-ai-corner-tr,
+.decor-ai-corner-bl {
+  display: block;
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--primary-color);
+  opacity: 0.85;
+}
+
+.decor-ai-corner-tr { top: 0; right: 0; }
+.decor-ai-corner-bl { bottom: 0; left: 0; }
+
+.decor-ai-corner-tr svg,
+.decor-ai-corner-bl svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-border {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  color: var(--primary-color);
+  opacity: 0.20;
+  pointer-events: none;
+}
+
+.decor-ai-border svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-margin {
+  display: block;
+  position: absolute;
+  top: 12mm;
+  left: 15mm;
+  right: 15mm;
+  height: 10px;
+  pointer-events: none;
+  z-index: 5;
+  color: var(--secondary-color);
+  opacity: 0.80;
+}
+
+.decor-ai-margin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-bg-pattern {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--primary-color);
+}
+
+.decor-ai-bg-pattern svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

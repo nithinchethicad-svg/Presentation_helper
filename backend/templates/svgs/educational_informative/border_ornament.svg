@@ -1,0 +1,7 @@
+<svg viewBox="0 0 800 40" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <line x1="0" y1="20" x2="800" y2="20" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.8"/>
+  <!-- Tick marks like a ruler -->
+  <path d="M 350,20 L 350,28 M 360,20 L 360,25 M 370,20 L 370,25 M 380,20 L 380,25 M 390,20 L 390,25 M 400,20 L 400,30 M 410,20 L 410,25 M 420,20 L 420,25 M 430,20 L 430,25 M 440,20 L 440,25 M 450,20 L 450,28" stroke="currentColor" stroke-width="1" stroke-opacity="0.85"/>
+  <circle cx="300" cy="20" r="4" fill="currentColor" fill-opacity="0.8"/>
+  <circle cx="500" cy="20" r="4" fill="currentColor" fill-opacity="0.8"/>
+</svg>

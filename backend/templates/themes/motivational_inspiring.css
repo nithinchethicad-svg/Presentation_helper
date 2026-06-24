@@ -1,0 +1,326 @@
+:root {
+  --font-heading: 'Aladin', 'Righteous', 'Montserrat', 'Arial', sans-serif;
+  --font-body: 'Barlow', sans-serif;
+  --card-radius: 12px;
+  --card-padding: 22px;
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), 0 0 10px rgba(255, 0, 85, 0.1);
+  --card-border: 2px solid var(--primary-color);
+  --line-height-body: 1.55;
+}
+
+/* Page Background speed lines */
+.page {
+  background-image: repeating-linear-gradient(135deg, var(--soft-fill) 0px, var(--soft-fill) 2px, transparent 2px, transparent 24px) !important;
+  background-color: var(--bg-color, #f8fafc) !important;
+}
+
+/* Glowing Neon HUD Page Frame */
+.page::after {
+  content: "";
+  position: absolute;
+  top: 8mm;
+  left: 8mm;
+  right: 8mm;
+  bottom: 8mm;
+  border: 2px solid var(--primary-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary-color) 20%, transparent), inset 0 0 8px color-mix(in srgb, var(--primary-color) 20%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Energetic Slanted Stripe Margin Accent */
+.margin-accent {
+  height: 12px !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--primary-color),
+    var(--primary-color) 12px,
+    var(--secondary-color) 12px,
+    var(--secondary-color) 24px
+  ) !important;
+  z-index: 10;
+}
+
+.margin-accent-bottom {
+  height: 12px !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--secondary-color),
+    var(--secondary-color) 12px,
+    var(--primary-color) 12px,
+    var(--primary-color) 24px
+  ) !important;
+  z-index: 10;
+}
+
+/* Motivational & Inspiring Accents - Clean Header without dividing lines */
+.page-header {
+  border-bottom: none !important;
+  margin-bottom: 22px !important;
+  padding-bottom: 0px !important;
+}
+
+.page-footer {
+  border-top: none !important;
+  padding-top: 0px !important;
+}
+
+/* WordArt: Extreme high-energy athletic font styled with dual flat offset shadows (highly legible, no skew, no outline) */
+.page-title {
+  font-family: var(--font-heading) !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.15)) !important;
+  display: inline-block !important;
+}
+
+.page-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  color: var(--text-color) !important;
+  opacity: 0.8 !important;
+}
+
+/* Cover Page Typography & Glowing Neon Accents */
+.cover-title {
+  font-family: var(--font-heading) !important;
+  font-size: 40px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(1.5px 1.5px 1px rgba(0, 0, 0, 0.15)) !important;
+  margin-bottom: 24px !important;
+  transform: none !important;
+}
+
+.cover-subtitle {
+  font-family: var(--font-body) !important;
+  font-size: 16px !important;
+  color: var(--text-color) !important;
+  font-weight: 600 !important;
+  opacity: 0.9 !important;
+}
+
+.branding-tag {
+  font-family: var(--font-heading) !important;
+  font-weight: 800 !important;
+  color: var(--primary-color) !important;
+  border: 2px solid var(--primary-color) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--primary-color) 15%, transparent) !important;
+}
+
+.meta-value {
+  color: var(--primary-color) !important;
+}
+
+/* Stylized Athletic Upward Triangle Cover Divider Symbol */
+.cover-divider {
+  width: 120px !important;
+  height: auto !important;
+  background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--primary-color) !important;
+  margin-bottom: 24px !important;
+}
+
+.cover-divider::before {
+  content: "▲" !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+}
+
+/* High-octane card with glowing border and sharp modern layout */
+.card {
+  background-color: var(--card-bg, #ffffff);
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow) !important;
+  padding: var(--card-padding) !important;
+  position: relative;
+  margin-bottom: 20px !important;
+}
+
+/* Angled geometric header cut on cards using clip-path */
+.card-title {
+  font-family: var(--font-heading) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+  margin: -22px -22px 16px -22px !important;
+  padding: 12px 22px !important;
+  border-radius: 10px 10px 0 0 !important;
+  clip-path: polygon(0 0, 100% 0, 96% 100%, 0 100%);
+  border-bottom: none !important;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Bold Upward Triangle Bullets */
+.bullet-list li, .two-column-list li {
+  list-style: none !important;
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 8px;
+  font-size: 13px !important;
+  line-height: var(--line-height-body);
+}
+
+.bullet-list li::before, .two-column-list li::before {
+  content: "▲" !important;
+  position: absolute;
+  left: 0;
+  top: 1px;
+  color: var(--secondary-color);
+  font-size: 11px;
+}
+
+/* Timeline Customizations - bold diagonal layout badges (no skew) */
+.timeline-badge {
+  border-radius: 0px !important;
+  transform: none !important;
+  background-color: var(--primary-color) !important;
+  font-family: var(--font-body) !important;
+  font-weight: 800 !important;
+}
+
+/* Hero callout quote box with massive italic impact typography */
+.callout-container {
+  border-left: none !important;
+  border-right: 8px solid var(--primary-color) !important;
+  background: linear-gradient(to right, var(--soft-fill), transparent) !important;
+  padding: 20px !important;
+  border-radius: 4px;
+}
+
+.callout-quote-text {
+  font-family: var(--font-body) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+}
+
+/* Disable Latent Corner Vector Speed Polygons & Glowing HUD Brackets (AI SVGs are used instead) */
+.decor-top-right, .decor-bottom-left {
+  display: none !important;
+}
+
+.decor-hud {
+  display: none !important;
+}
+
+.decor-polygon-1 {
+  display: none !important;
+}
+
+.decor-polygon-2 {
+  display: none !important;
+}
+
+.decor-hud-bracket {
+  display: none !important;
+}
+
+.decor-hud-dot {
+  display: none !important;
+  filter: drop-shadow(0 0 3px var(--accent-color)) !important;
+}
+
+
+
+
+
+/* ── AI-Generated SVG Decoration Slots ──────────────────────────── */
+/* Activated when AI SVGs have been generated for this theme.        */
+
+.decor-ai-corner-tr,
+.decor-ai-corner-bl {
+  display: block;
+  position: absolute;
+  width: 185px;
+  height: 185px;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--primary-color);
+  opacity: 0.85;
+}
+
+.decor-ai-corner-tr { top: 0; right: 0; }
+.decor-ai-corner-bl { bottom: 0; left: 0; }
+
+.decor-ai-corner-tr svg,
+.decor-ai-corner-bl svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-border {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  color: var(--primary-color);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.decor-ai-border svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-margin {
+  display: block;
+  position: absolute;
+  top: 12mm;
+  left: 15mm;
+  right: 15mm;
+  height: 10px;
+  pointer-events: none;
+  z-index: 5;
+  color: var(--secondary-color);
+  opacity: 0.80;
+}
+
+.decor-ai-margin svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.decor-ai-bg-pattern {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--primary-color);
+}
+
+.decor-ai-bg-pattern svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

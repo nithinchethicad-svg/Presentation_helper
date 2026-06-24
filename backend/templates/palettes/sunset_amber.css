@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #9a3412;       /* Terracotta Rust */
+  --secondary-color: #ea580c;     /* Sunset Orange */
+  --accent-color: #eab308;        /* Warm Gold */
+  --bg-color: #fffbeb;            /* Amber 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #fed7aa;        /* Orange 100 */
+  --text-color: #1c1917;          /* Dark Stone Text */
+  --soft-fill: #fff7ed;           /* Soft Peach Tint */
+}

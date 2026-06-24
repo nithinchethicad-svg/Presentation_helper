@@ -1,0 +1,10 @@
+:root {
+  --primary-color: #14532d;       /* Forest Green */
+  --secondary-color: #166534;     /* Dark Emerald */
+  --accent-color: #d97706;        /* Warm Amber */
+  --bg-color: #fafaf9;            /* Stone 50 */
+  --card-bg: #ffffff;             /* Pure White */
+  --border-color: #e7e5e4;        /* Stone 200 */
+  --text-color: #1c1917;          /* Stone 900 */
+  --soft-fill: #f0fdf4;           /* Soft Moss Tint */
+}

@@ -1,0 +1,46 @@
+<div class="two-column-block section-block">
+  <!-- Left Column Card -->
+  <div class="card column-card left-card">
+    <h3 class="card-title">{{leftColumnHeader}}</h3>
+    <ul class="bullet-list">
+      {{leftColumnBullets}}
+    </ul>
+  </div>
+
+  <!-- Right Column Card -->
+  <div class="card column-card right-card">
+    <h3 class="card-title">{{rightColumnHeader}}</h3>
+    <ul class="bullet-list">
+      {{rightColumnBullets}}
+    </ul>
+  </div>
+</div>
+
+<style>
+  .two-column-block {
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    width: 100%;
+    align-items: stretch;
+    flex: 1 1 auto;
+  }
+  .column-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0 !important; /* Managed by stack container */
+  }
+  .column-card ul {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-left: 18px;
+  }
+  .column-card li {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+</style>

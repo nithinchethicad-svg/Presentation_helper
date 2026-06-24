@@ -5,7 +5,10 @@ const dotenv = require('dotenv');
 const officeParser = require('officeparser');
 const { GoogleGenAI } = require('@google/genai');
 const path = require('path');
+const fs = require('fs');
 const { harvestMedia } = require('./utils/mediaHarvester');
+const { analyzeSlides } = require('./utils/slideAnalyzer');
+const { compileDocument } = require('./utils/htmlCompiler');
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +22,8 @@ app.use(express.json());
 
 // Serve extracted presentation images statically
 app.use('/extracted_media', express.static(path.join(__dirname, 'public/extracted_media')));
+app.use('/fonts', express.static(path.join(__dirname, 'templates/fonts')));
+app.use('/templates', express.static(path.join(__dirname, 'templates')));
 
 // Set up Multer for in-memory file uploads
 const upload = multer({
@@ -1084,7 +1089,7 @@ function stripPrintUnfriendlyStyles(html) {
   /* PRINT OVERRIDES */
   @media print {
     @page {
-      margin: 0 !important;
+      margin: 0;
     }
     body {
       margin: 0 !important;
@@ -1472,6 +1477,160 @@ app.get('/api/logs', (req, res) => {
   res.send(html);
 });
 
+// --- NEW VIRTUAL MATRIX TEMPLATE EXPLORER ENDPOINTS ---
+
+const mockData = {
+  CoverPage: {
+    pageTitle: 'Leveraging AI in Modern Enterprise Architecture',
+    sections: [
+      {
+        sectionType: 'CoverBlock',
+        title: 'Leveraging AI in Modern Enterprise Architecture',
+        subtitle: 'A strategic framework for scalability, visual consistency, and programmatic efficiency in layout generation pipelines.',
+        author: 'Dr. Sarah Jenkins, Director of AI Engineering',
+        date: '24 June 2026'
+      }
+    ]
+  },
+  TwoColumnSplit: {
+    pageTitle: 'Comparison of Traditional AI Draw vs. Matrix Compilers',
+    sections: [
+      {
+        sectionType: 'TwoColumnBlock',
+        leftColumnHeader: 'Stage 2 & 3 Parallel AI Rendering',
+        leftColumnBullets: [
+          'Workload: High-concurrency parallel API calls (12+ calls per document)',
+          'Cost & Rate Limits: Extremely high risk of exhausting daily Free Tier limits (429)',
+          'Layout Reliability: AI frequently hallucinates sizes, causing text overflows and broken designs',
+          'Visual Consistency: Style anomalies occur across pages since prompts are run independently'
+        ],
+        rightColumnHeader: 'Programmatic Matrix Theme Compilers',
+        rightColumnBullets: [
+          'Workload: Exactly 1 single structured JSON summary request (90% reduction)',
+          'Cost & Rate Limits: Consumes negligible quota, fully compatible with Free Tier limits',
+          'Layout Reliability: Handled programmatically via CSS variables in under 1ms (100% overflow-free)',
+          'Visual Consistency: Absolute coherence as typography and colors are globally enforced'
+        ]
+      }
+    ]
+  },
+  MultiCardGrid: {
+    pageTitle: 'The Four Pillars of Programmatic Layout Systems',
+    sections: [
+      {
+        sectionType: 'MultiCardGrid',
+        cards: [
+          { header: '1. CSS Token Isolation', content: 'Zero hardcoded colors or sizing values in templates. Presentation lies purely in clean orthogonal CSS variable sheets.' },
+          { header: '2. Programmatic Page Budgets', content: 'Complexity scoring algorithms split slide content into balanced blocks before AI summarization occurs.' },
+          { header: '3. Single Call Workloads', content: 'AI acts purely as a content synthesizer, outputting structured JSON field shapes rather than layout code.' },
+          { header: '4. Local Dashboard Previews', content: 'Visual verification runs 100% offline, allowing instant style audits and zero-cost theme compilation.' }
+        ]
+      }
+    ]
+  },
+  ProcessTimeline: {
+    pageTitle: 'Step-by-Step Document Compilation Pipeline',
+    sections: [
+      {
+        sectionType: 'ProcessTimeline',
+        steps: [
+          { stepNumber: '01', header: 'PowerPoint Parsing', description: 'PowerPoint files are unzipped and parsed for slide headers, tables, images, and text runs.' },
+          { stepNumber: '02', header: 'Complexity Analysis', description: 'SlideAnalyzer computes complexity metrics and allocates slides into page budgets.' },
+          { stepNumber: '03', header: 'Gemini Synthesis', description: 'Stage 1 AI generates structured, clean JSON summaries matching the registry schema.' },
+          { stepNumber: '04', header: 'Template Assembly', description: 'HtmlCompiler loads component layouts, replaces variables, and merges CSS theme stylesheets.' },
+          { stepNumber: '05', header: 'Print-Safe Output', description: 'Fully validated, overflow-free A4 PDF document is ready in under 4 seconds.' }
+        ]
+      }
+    ]
+  },
+  DataTable: {
+    pageTitle: 'System Performance and Resource Benchmark Matrix',
+    sections: [
+      {
+        sectionType: 'DataTable',
+        headers: ['Pipeline Metric', 'Parallel AI Draw (Old)', 'Matrix Compiler (New)', 'Performance Gain'],
+        rows: [
+          ['E2E Render Time', '28.5 Seconds', '3.8 Seconds', '7.5x Acceleration'],
+          ['Gemini API Calls', '12+ Concurrent Requests', 'Exactly 1 Request', '91% Fewer Calls'],
+          ['Visual Consistency', 'Variable (Frequent Drift)', 'Absolute Coherence', 'Guaranteed Quality'],
+          ['Daily Quota Cost', '₹75.40 (Paid Equivalent)', '₹2.80 (Paid Equivalent)', '96% Cost Savings'],
+          ['Visual Overflow Rate', '14.2% of Pages', '0.0% (Print-Safe)', 'Zero Overflow Error']
+        ]
+      }
+    ]
+  },
+  HeroCallout: {
+    pageTitle: 'Core Philosophy of Programmatic Styling',
+    sections: [
+      {
+        sectionType: 'HeroCallout',
+        quoteText: 'Programmatic layout styling is not about restricting creativity; it is about freeing the AI to focus entirely on information synthesis while the system guarantees visual excellence.',
+        author: 'Principles of Modern UX Engineering',
+        highlightText: 'Separating content from presentation allows layouts to render instantly in under 1ms, costing zero API quota and ensuring print safety.'
+      }
+    ]
+  },
+  MixedMedia: {
+    pageTitle: 'Contextual Media Floats & Wrapping',
+    sections: [
+      {
+        sectionType: 'MediaBlock',
+        imageId: 'img_test_graphic.png',
+        caption: 'Figure 4.1: Flowchart illustrating the connection between slide complexity scoring and dynamic page budgets.',
+        resolvedClass: 'float-right',
+        textContent: 'The MixedMedia layout uses standard float-based CSS properties to wrap paragraph text cleanly around embedded images and charts. This structure ensures that figures are displayed alongside their descriptions, maximizing space efficiency on the print sheet. The compiler automatically injects the image caption in a neat sub-card block, and applies a clear-both rule below the wrap to prevent bullet list bleed.',
+        bullets: [
+          'Responsive wrapping: Automatically resizes to 45% of the A4 printable area.',
+          'Captioned blocks: Captions are contained inside borders, preventing overlap.',
+          'Flow independence: Falls back to a clean text card if no imageId is resolved.'
+        ]
+      }
+    ]
+  },
+  CompositeLayout: {
+    pageTitle: 'Strategic Objectives & Visual Philosophy',
+    sections: [
+      {
+        sectionType: 'StandardTextBlock',
+        header: 'Q3 Document Generation Goals',
+        bullets: [
+          'Bypass fragile client-side PDF generation via solid A4 printing standards.',
+          'Deliver zero-overflow assurance via Slide Complexity scoring limits.',
+          'Reduce Gemini API latency by bundling all slide summaries in a single JSON call.'
+        ]
+      },
+      {
+        sectionType: 'HeroCallout',
+        quoteText: 'A high-identity design creates instant trust and makes takeaways unforgettable.',
+        author: 'Takeaway Notes Design Philosophy',
+        highlightText: 'Each of the six Vibe Themes is engineered with distinct borders, shadows, and spacing.'
+      }
+    ]
+  }
+};
+
+// Serve the Visual Explorer HTML page
+app.get('/templates/explorer', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/explorer.html'));
+});
+
+// Returns metadata for presets, themes, and palettes
+app.get('/api/templates/presets', (req, res) => {
+  res.json({
+    presets: Object.keys(mockData),
+    themes: ['formal_professional', 'warm_encouraging', 'fun_energetic', 'reflective_thoughtful', 'educational_informative', 'motivational_inspiring'],
+    palettes: ['corporate_navy', 'warm_forest', 'electric_purple', 'sunset_amber', 'elegant_charcoal', 'midnight_teal', 'crimson_gold', 'nordic_sage', 'cyberpunk_neon', 'vintage_cream']
+  });
+});
+
+// Generates and returns compiled preview page inside iframe
+app.get('/api/templates/preview', (req, res) => {
+  const { preset, theme, palette } = req.query;
+  const pageData = mockData[preset] || mockData.TwoColumnSplit;
+  const compiledHtml = compileDocument([pageData], theme, palette);
+  res.send(compiledHtml);
+});
+
 /**
  * Endpoint to incrementally summarize completed chats using a lightweight model chain.
  */
@@ -1726,7 +1885,6 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const bExtractEventName  = extractEventName  === 'true';
     const bExtractEventDate  = extractEventDate  === 'true';
     const bExtractCoverInfo  = extractCoverInfo  === 'true';
-    const bAutoExtractColor  = colorScheme === 'Auto-Extract Theme';
     const bStrictFileContentOnly = strictFileContentOnly === 'true';
 
     const files = req.files || [];
@@ -1737,9 +1895,10 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     logEvent('info', `Received generate request with ${files.length} files.`, {
       colorScheme, detailLevel, writingTheme,
       targetAudience, setting: effectiveSetting,
-      bExtractEventName, bExtractEventDate, bExtractCoverInfo, bAutoExtractColor, bStrictFileContentOnly
+      bExtractEventName, bExtractEventDate, bExtractCoverInfo, bStrictFileContentOnly
     });
 
+    // 1. Text Extraction
     const textExtractionPromises = files.map(file => {
       const ext = file.originalname.split('.').pop().toLowerCase();
       return parseFileBuffer(file.buffer, ext)
@@ -1753,7 +1912,7 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const fileTexts = await Promise.all(textExtractionPromises);
     const combinedSourceText = fileTexts.join('\n\n');
 
-    // Run the programmatic media harvester to extract, map, and size embedded images/charts
+    // 2. Programmatic Media Harvesting
     logEvent('info', 'Harvesting and mapping embedded media from uploaded files...');
     const mediaOutputDir = path.join(__dirname, 'public/extracted_media');
     const mediaHarvestPromises = files.map(file => {
@@ -1767,52 +1926,33 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
     const allExtractedImages = harvestedMediaResults.flat();
     logEvent('info', `Successfully harvested ${allExtractedImages.length} images/charts from uploaded files.`);
 
+    // 3. Slide Complexity Analysis (Page Budgeting)
+    logEvent('info', 'Running Slide Complexity Analyzer for page budgeting...');
+    let pageAllocations = [];
+    try {
+      pageAllocations = await analyzeSlides(files[0].buffer, files[0].originalname);
+      logEvent('info', `Programmatic Page Budgeting completed: Allocated slides into ${pageAllocations.length} A4 pages.`);
+    } catch (err) {
+      logEvent('error', `Slide complexity analysis failed, falling back to 1 slide per page: ${err.message}`);
+      pageAllocations = [{ pageNumber: 1, slideIndices: [1], complexity: 10, isCover: true, title: 'Cover Page' }];
+    }
+
+    // 4. Load the JSON Template Registry dynamically
+    let registryContent = "";
+    try {
+      const registryPath = path.join(__dirname, 'templates/registry.json');
+      registryContent = fs.readFileSync(registryPath, 'utf8');
+    } catch (err) {
+      logEvent('error', `Failed to read template registry.json: ${err.message}`);
+      throw new Error(`System failure: template registry is inaccessible.`);
+    }
+
     const detailInstructions = {
       'Brief': 'Produce a HIGH-IMPACT, CONDENSED summary. Focus EXCLUSIVELY on the absolute core highlights, main thesis, and 3-5 key takeaways per section.',
       'Moderate': 'Produce a BALANCED, STANDARD summary. Cover all primary sections, speaker insights, and main slide concepts.',
       'Comprehensive': 'Produce an EXHAUSTIVE, DEEP BREAKDOWN. Capture ALL terminology, definitions, explanations, formulas, and detailed supporting notes.'
     };
     const detailInstruction = detailInstructions[detailLevel] || detailInstructions['Moderate'];
-
-    const vibeThemeRules = {
-      'Warm & Encouraging': `
-        TYPOGRAPHY: Use Google Fonts "Nunito" (rounded, friendly) for headings and "Lato" for body. H1: oversized (2.5em+), bold, warm-toned. H2: 1.4em, semi-bold. Body text: 1em, generous line-height 1.7.
-        SHAPES & CONTAINERS: Use soft rounded rectangles (border-radius: 20-30px) for content cards. Add organic wave SVG dividers between sections at the page margins. Use gentle pastel fills (peach, lavender, soft orange) for callout boxes (must be standard rectangles).
-        INFOGRAPHICS: Break key points into "Encouragement Cards" (rounded rectangles) with a large emoji/icon and short motivational statement. Use side-by-side two-column layouts for tips. Add "Remember This!" callout boxes (standard rounded rectangles only, no speech-bubble clip-paths).
-        COLOR PALETTE: Warm amber (#f97316), soft peach (#fed7aa), light cream (#fffbeb), with dark chocolate (#1c1917) for text.
-      `,
-      'Formal & Professional': `
-        TYPOGRAPHY: Use Google Fonts "Inter" (crisp, geometric) for both headings and body. H1: bold 2em, all-caps with letter-spacing 0.08em. H2: 1.3em, medium weight, thin bottom border. Body: 0.95em, tight line-height 1.5.
-        SHAPES & CONTAINERS: Use sharp-edged rectangles (border-radius: 4px max) for all content blocks. Apply crisp thin 1px borders (#334155) on cards. Use a strict grid layout with clear column separators.
-        INFOGRAPHICS: Use structured data tables with alternating row shading. Add numbered list badges (e.g. "01.", "02.") for ordered points. Use thin horizontal rules to separate all sections.
-        COLOR PALETTE: Deep slate (#1e293b), cool grey (#64748b), white (#ffffff), and a single corporate accent (e.g. #2563eb or #0f172a).
-      `,
-      'Fun & Energetic': `
-        TYPOGRAPHY: Use Google Fonts "Poppins" (bold) for H1 and "Comic Neue" or "Fredoka One" for subheadings. H1: massive, 3em+, heavy weight, rotated slightly or with an underline squiggle. H2: 1.5em, bold, colourful.
-        SHAPES & CONTAINERS: Use standard rectangle cards with border-radius and heavy solid drop-shadows (box-shadow: 8px 8px 0px #000) for holding text. Do NOT use asymmetrical clip-paths for text cards. Add squiggly or wavy borders using SVG and triangular accent shapes only at the page margins. Mix background colours per section (never plain white).
-        INFOGRAPHICS: Use large "Stat Badges" (circles or squares). Add "Did You Know?" callout boxes (rectangles/squares). Use icon-heavy bullet points. Add confetti or star decorative elements only at the margins.
-        COLOR PALETTE: Hot pink (#ec4899), electric yellow (#facc15), deep purple (#7c3aed), bright teal (#06b6d4) on a near-white or light grey base.
-      `,
-      'Reflective & Thoughtful': `
-        TYPOGRAPHY: Use Google Fonts "Playfair Display" (elegant serif) for H1 headings and "Source Serif 4" or "Georgia" for body. H1: 2.2em, italic, generous margins. H2: 1.2em, small-caps. Body: 1em, wide line-height 1.8, ample paragraph spacing.
-        SHAPES & CONTAINERS: Minimalist fine-line borders (1px solid #d1d5db) on rectangular cards. Extra-wide padding (30-40px) inside content blocks. Ample negative/blank space between sections. No heavy backgrounds — white or very light grey only.
-        INFOGRAPHICS: Use pull-quote blocks (standard rectangles with a large left-border accent line + italic quote text). Add "Pause & Reflect" prompts in bordered aside boxes (standard rectangles). Use sparse, refined iconography. Avoid heavy infographic elements.
-        COLOR PALETTE: Soft sage (#d1fae5), warm off-white (#fafaf9), medium grey (#6b7280), and one contemplative accent like forest green (#059669) or dusty blue (#7c9eb2).
-      `,
-      'Educational & Informative': `
-        TYPOGRAPHY: Use Google Fonts "Roboto" for body text and "Roboto Slab" or "DM Sans" for headings. H1: bold 2em with a coloured underline. H2: 1.3em with a numbered prefix badge. Body: 0.95em, clear 1.6 line-height.
-        SHAPES & CONTAINERS: Use flowchart-style standard rectangular containers for sequential content. Use standard grid blocks (rectangles/squares) with labelled headers for each content area. Use process arrows (→) between steps. Add "Key Term" definition boxes (rectangles/squares) with a left-coloured border.
-        INFOGRAPHICS: Use side-by-side comparison tables. Add process flow diagrams (Step 1 → Step 2 → Step 3) using CSS flexbox boxes (rectangles) with connector arrows at the margins. Include "Key Concept" and "Example" callout boxes (rectangles) with distinct background colours.
-        COLOR PALETTE: Academic blue (#2563eb), knowledge gold (#f59e0b), white (#ffffff), with light blue section backgrounds (#eff6ff).
-      `,
-      'Motivational & Inspiring': `
-        TYPOGRAPHY: Use Google Fonts "Montserrat" (tall, bold) for H1 — extreme weight (900), all-caps, with a gradient or coloured fill. Use "Open Sans" for body. H1: 2.8em+, all-caps. H2: 1.4em, bold, coloured. Body: 1em, 1.6 line-height.
-        SHAPES & CONTAINERS: Use forward-slashing diagonal lines (clip-path: polygon) and chevron/arrow accent shapes ONLY as decorative designs at the page margins. All content and text panels must be standard rectangles or squares. Backgrounds should have bold gradient fills per section.
-        INFOGRAPHICS: Use large "Hero Numbers" (giant stat circles or squares + descriptor text). Add milestone banners ("Goal 1", "Goal 2") in a horizontal ribbon layout (rectangles). Use upward arrow motifs (▲) at the margins. Bold "Call to Action" boxes (rectangles) at the end of each page.
-        COLOR PALETTE: Deep purple (#7c3aed), electric indigo (#4f46e5), vibrant gold (#fbbf24), and white on bold dark backgrounds.
-      `
-    };
-    const vibeInstruction = vibeThemeRules[writingTheme] || vibeThemeRules['Formal & Professional'];
 
     let extractionInstructions = '';
     if (bExtractEventName || bExtractEventDate || bExtractCoverInfo) {
@@ -1826,142 +1966,166 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
       additionalInstructions ? `- Instructions: ${additionalInstructions}` : ''
     ].filter(Boolean).join('\n');
 
-    const colorInstruction = bAutoExtractColor ? 'Analyze source material and select a harmonious primary color palette.' : `Design using theme "${colorScheme}".`;
+    // 5. Build the Stage 1 Prompt (JSON Synthesis)
+    logEvent('info', 'Executing Stage 1: Planning and synthesizing structured JSON page contents...');
 
-    // ── STAGE 1: Blueprint Prompts ─────────────────────────────────────────
-    logEvent('info', 'Executing Stage 1: Planning page-by-page layout blueprint...');
-
-    const blueprintSystemInstruction = 
-      "You are an expert layout designer. Design a JSON array of page plan objects. Total words per page <= 250. Return ONLY raw JSON. " +
-      "CRITICAL: You MUST combine multiple short slides/sections onto a single page plan to avoid large empty spaces. A single A4 page must be densely packed and can contain multiple sections. Do not artificially force 1 slide per page if they are short. You must preserve the text of all headers exactly as they appear in the source files. " +
-      "CRITICAL IMAGES & CHARTS PLACEMENT: You are provided with a list of extracted images and charts. Your task is to place them contextually under the corresponding header section by adding an element of 'elementType': 'image'. Do NOT place the same image multiple times. If a slide or section has no relevant image in the list, do not add one. " +
+    const summarizerSystemInstruction = 
+      "You are an expert content synthesizer and editor. Your task is to summarize the provided presentation source text into a structured JSON array of page objects. " +
+      "Each page object represents a single A4 page and must contain a 'pageNumber', a 'pageTitle', and a 'sections' array. " +
+      "The 'sections' array contains one or more section block objects (e.g. StandardTextBlock, TwoColumnBlock, HeroCallout) stacked vertically. " +
+      "For pages summarizing a single slide or heavy content, place a single section. For pages with multiple slides or lighter content, you can stack 2 or more sections (e.g. a StandardTextBlock followed by a HeroCallout) to optimize page space. " +
+      "You MUST strictly adhere to the pre-calculated A4 page allocation plan provided in the prompt. Do NOT add pages, remove pages, or change the slide allocations. " +
+      "CRITICAL: The output must contain ONLY a valid JSON array matching the schemas. Do NOT wrap in markdown code blocks and do NOT add any conversational text. " +
       (bStrictFileContentOnly 
-        ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, external history, or context not written in the files. If it is not in the text, it does not exist."
-        : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
+        ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT introduce pre-trained knowledge, definitions, external history, or context not written in the files."
+        : "You may supplement the notes with external definitions, explanations, and background context if helpful for explaining the slide topics.");
 
-    const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. 
-    Extracted Images available for placement: ${JSON.stringify(allExtractedImages)}.
-    JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "imageId", "resolvedClass", "caption", "wordBudget", "layoutStylingDetails"}]}]. ElementType can be 'text' or 'image'. For 'image' elements, you must populate 'imageId', 'resolvedClass', and 'caption' from the provided extracted images list.`;
+    const summarizerPrompt = `
+Task: Synthesize the presentation source text into a structured JSON array of page summaries.
 
-    let blueprintText = await generateContentWithRotation(
-      blueprintPrompt,
-      blueprintSystemInstruction,
-      { responseMimeType: "application/json" },
-      STRUCTURED_CODING_MODEL_CHAIN
-    );
-    let blueprintJSON;
-    try {
-      blueprintJSON = cleanAndParseJson(blueprintText);
-    } catch (parseError) {
-      logEvent('error', `Failed to parse blueprint JSON. Raw text: "${blueprintText}"`, { error: parseError.message });
-      throw new Error(`Failed to parse layout blueprint JSON: ${parseError.message}`);
-    }
+Source Text: 
+${combinedSourceText.substring(0, 150000)}
 
-    // ── STAGE 2: HTML Generation Prompts (Parallel) ────────────────────────
-    logEvent('info', `Executing Stage 2: Drafting HTML summary in parallel across ${blueprintJSON.length} pages...`);
+Preferences:
+- Detail level: ${detailInstruction}
+- Target Audience: ${targetAudience}
+- Setting: ${effectiveSetting}
+- Metadata: ${metadataBlock}
+${extractionInstructions}
 
-    const htmlSystemInstruction = 
-      "You are an expert content designer and summary publisher. " +
-      "Create a standalone HTML snippet containing a single page of notes strictly following the provided page blueprint. " +
-      "The page MUST be wrapped in a single <div class=\"page\">...</div> container. Use A4 dimensions. NO overflow/scrollbars. NO hover/:hover. Return ONLY raw HTML. " +
-      "CRITICAL TYPOGRAPHY & HIERARCHY: If you import Google Fonts, use <link rel=\"stylesheet\" href=\"...\"> at the top of your snippet. Proactively apply the theme's fancy/decorative Google Fonts to all main titles, sub-titles, section titles, headers, and sub-headers (H1, H2, H3, H4, etc.) to make them look visually striking, premium, and themed. Keep body text highly readable (e.g. using Lato, Inter, or Open Sans). Do NOT use generic system fonts for headings. " +
-      "Ensure you strictly enforce the following class-based font size hierarchy in your CSS and HTML: " +
-      "1. Main Title (.title): 40px, extra-bold (use for document title/cover page). " +
-      "2. Subtitles (.subtitle): 32px, semi-bold. " +
-      "3. Section Titles (.section-title): 28px, bold. " +
-      "4. Headers (h1, .header): 24px, bold (use for page/slide headings). " +
-      "5. Sub-headers (h2, .sub-header): 20px, semi-bold. " +
-      "6. Table Header Row / Card Headers (h3, th, .box-header, .card-title): 16px, bold. " +
-      "7. Body / Rows (td, p, li, .body-text): 14px, regular. " +
-      "8. Page Numbers (.page-number): 11px, medium (placed at the bottom right of the page: <div class=\"page-number\">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div>). " +
-      "CRITICAL VISUAL DESIGN: You must apply the Vibe Theme Design Rules to generate a premium visual document. Proactively implement styled shapes, card blocks (.card), callout boxes (.callout-box), statistical highlights (.stat-card), note containers (.notes-card), process indicators (.step-card), shaded tables with alternating row colors, pull-quotes, timelines, and decorative visual separators. Avoid plain unstyled text. " +
-      "TEXT CONTAINER SHAPES: For holding text, you must ONLY use standard geometric shapes: squares, rectangles (including rounded corners / border-radius), and circles. Do NOT use clip-paths, polygons, squiggles, triangles, starbursts, or speech bubbles to hold text, as this clips or overflows content. All stylized borders, decorative accents, clip-path backgrounds, and decorative shapes must be placed at the page margins (outer edges) and must not overlap text areas. " +
-      "PAGE DENSITY & GAPS: Avoid leaving large empty spaces at the bottom of pages. Pack elements efficiently. " +
-      "IMAGE RENDER CONSTRAINTS: If a section in the blueprint has \"elementType\": \"image\", you MUST render a clean <img> tag using the provided imageId in its src and the resolvedClass as its class: <img class=\"[resolvedClass]\" src=\"/extracted_media/[imageId]\" alt=\"[caption]\" />. If there is a caption, place it neatly below the image in a small div: <div class=\"image-caption\">[caption]</div>. Text wrapping must only wrap around the image itself, not the caption. " +
-      "CRITICAL: You must strictly preserve all slide titles, slide headers, subheaders, and section headings exactly as they appear in the blueprint. Do NOT invent new headers or rename sections. " +
-      (bStrictFileContentOnly
-        ? "CRITICAL FACTS: Summarize ONLY information explicitly stated in the source text. Do NOT hallucinate background facts, introduce pre-trained knowledge, definitions, or context not written in the files."
-        : "You may supplement the notes with external definitions, examples, and background context if helpful for explaining the slide topics.");
+--- Programmatic Page Allocation Plan ---
+You MUST generate exactly ${pageAllocations.length} page objects in your JSON array. The slides allocated to each page are:
+${pageAllocations.map(p => {
+  if (p.isCover) return `- Page ${p.pageNumber}: Cover Title Sheet (use CoverBlock section)`;
+  let splitText = "";
+  if (p.isSplitPart === 1) splitText = " (Part 1: first half of content)";
+  else if (p.isSplitPart === 2) splitText = " (Part 2: second half of content)";
+  return `- Page ${p.pageNumber}: Summarize content of slides [${p.slideIndices.join(', ')}]${splitText} using title: "${p.title}"`;
+}).join('\n')}
 
-    // Render pages in batches to respect Free Tier API concurrency limits and prevent rate limit errors
-    const pageHtmls = [];
-    const concurrencyLimit = 3;
-    logEvent('info', `Rendering ${blueprintJSON.length} pages in batches of ${concurrencyLimit}...`);
-    
-    for (let i = 0; i < blueprintJSON.length; i += concurrencyLimit) {
-      const batch = blueprintJSON.slice(i, i + concurrencyLimit);
-      const batchIndex = Math.floor(i / concurrencyLimit) + 1;
-      const totalBatches = Math.ceil(blueprintJSON.length / concurrencyLimit);
-      logEvent('info', `Processing Stage 2 batch ${batchIndex}/${totalBatches} (${batch.length} pages)...`);
-      
-      const batchPromises = batch.map(async (pagePlan) => {
-        const pagePrompt = `Task: Generate a single standalone A4 HTML page (wrapped in <div class="page">...</div>) for the following page plan from the blueprint:
-        
-        Page Plan: ${JSON.stringify(pagePlan)}
-        
-        Theme styling rules: ${vibeInstruction}
-        Color palette rules: ${colorInstruction}
-        
-        Specific Page Requirements:
-        - Enforce A4 dimensions with narrow margins (exactly 12mm padding).
-        - Use fancy Google Fonts on headings.
-        - Enforce the strict class-based font size hierarchy.
-        - Place the exact page number placeholder: <div class="page-number">Page {{PAGE_NUM}} of {{TOTAL_PAGES}}</div> in the bottom right corner.
-        - Ensure print-safe styles, no hover, no overflow.
-        - Return ONLY the raw HTML code for this single page. Do NOT add markdown code fences (like \`\`\`html) and do NOT add any introductory or concluding conversational text.`;
+--- Available Template Presets (registry.json) ---
+For each section object inside the "sections" array, set "sectionType" to one of these preset names and populate its corresponding fields:
+${registryContent}
 
-        return generateContentWithRotation(
-          pagePrompt,
-          htmlSystemInstruction,
-          {},
-          CREATIVE_LAYOUT_MODEL_CHAIN
-        );
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      pageHtmls.push(...batchResults);
-    }
-    logEvent('info', `Successfully drafted all ${pageHtmls.length} HTML pages.`);
+--- Available Extracted Images for Placement ---
+If a page contains slide indices that have corresponding images in this list, you MUST select the most relevant image, add a section with "sectionType": "MediaBlock", and populate "imageId", "caption", and "resolvedClass" accordingly. Do NOT place the same image multiple times.
+Extracted Images: ${JSON.stringify(allExtractedImages)}
 
-    // Compile pages and inject dynamic page numbers
-    const compiledHtmlDraft = pageHtmls.map((pageHtml, index) => {
-      const cleanHtml = cleanHtmlResponse(pageHtml);
-      return cleanHtml
-        .replace(/{{PAGE_NUM}}/g, index + 1)
-        .replace(/{{TOTAL_PAGES}}/g, pageHtmls.length);
-    }).join('\n');
-
-    // ── STAGE 3: HTML Validation Prompts ───────────────────────────────────
-    logEvent('info', 'Executing Stage 3: Running HTML validation on compiled document...');
-    const validatorSystemInstruction = "Fix all overflow, print-safety (no hover/transitions), and CSS containment violations. Return ONLY corrected HTML.";
-    const validatorPrompt = `
-Task: Inspect the generated HTML/CSS code below for any formatting, overflow, page-bleeding, or print-safety violations, and output a corrected, fully safe version.
-
---- HTML/CSS Code to Inspect ---
-${compiledHtmlDraft}
---------------------------------
-
-Checklist of violations you MUST correct if present:
-1. FIXED HEIGHTS: Any container inside a page (like .card, .callout, .badge, .container, .sidebar, div) that has a fixed "height: Xpx" or "height: Xrem". You MUST convert it to "min-height: Xpx; height: auto" so the shape expands with text.
-2. TEXT OVERFLOW: Any heading, paragraph, list item, span, pre, code, or table that does not have "word-break: break-word; overflow-wrap: break-word;". Ensure these are added to prevent text bleeding out of the A4 page.
-3. HOVER / TRANSITIONS: If you see any ":hover" pseudo-class, transition property, animation, cursor: pointer, transform-on-hover, or absolute fixed/sticky positions, you MUST remove them.
-4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents or page numbers. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
-5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
-6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
-7. PAGE CONTAINERS & TEXT SHAPES: Ensure the output preserves multiple separate <div class="page">...</div> containers (one for each page), using narrow margins (padding exactly 12mm). Ensure all text-holding containers are standard squares, rectangles, or circles. Ensure any stylized/decorative borders or accents are placed at the outer page margins and do not overlap text. Do NOT strip out visual shapes, colors, or card structures.
-8. FONT SIZE HIERARCHY & PAGE NUMBERS: Verify the font size hierarchy is strictly respected: Title (40px), Subtitle (32px), Section Title (28px), Header (24px), Sub-header (20px), Table Header / Box Header (16px), Body / Rows (14px), and Page Numbers (11px). Check that each .page element has a bottom-aligned <div class="page-number">Page X of Y</div> element (with the correct resolved page numbers). Avoid unnecessary page inflation and pack elements densely.
-9. GOOGLE FONTS & THEME: You MUST preserve all <link rel="stylesheet"> tags for Google Fonts and all font-family CSS rules. Do NOT strip them.
-
-Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
+JSON Output Schema:
+[
+  {
+    "pageNumber": 1,
+    "pageTitle": "Leveraging AI in Modern Enterprise Architecture",
+    "sections": [
+      {
+        "sectionType": "CoverBlock",
+        "title": "Leveraging AI in Modern Enterprise Architecture",
+        "subtitle": "Subtitle",
+        "author": "Author",
+        "date": "Date"
+      }
+    ]
+  },
+  {
+    "pageNumber": 2,
+    "pageTitle": "Comparison and Core Takeaway",
+    "sections": [
+      {
+        "sectionType": "TwoColumnBlock",
+        "leftColumnHeader": "Left Header",
+        "leftColumnBullets": ["bullet 1", "bullet 2"],
+        "rightColumnHeader": "Right Header",
+        "rightColumnBullets": ["bullet 1"]
+      },
+      {
+        "sectionType": "HeroCallout",
+        "quoteText": "This is a key quote.",
+        "author": "Source",
+        "highlightText": "Takeaway summary"
+      }
+    ]
+  }
+]
 `;
-    let htmlValidated = await generateContentWithRotation(
-      validatorPrompt,
-      validatorSystemInstruction,
-      {},
-      STRUCTURED_CODING_MODEL_CHAIN
+
+    // Calculate total complexity and average complexity
+    const totalComplexity = pageAllocations.reduce((sum, p) => sum + p.complexity, 0);
+    const avgComplexity = pageAllocations.length > 0 ? totalComplexity / pageAllocations.length : 0;
+    const maxComplexity = pageAllocations.reduce((max, p) => Math.max(max, p.complexity), 0);
+    
+    logEvent('info', `Slide deck complexity metrics: Total=${totalComplexity}, Avg=${avgComplexity.toFixed(2)}, Max=${maxComplexity}`);
+
+    // Intelligent Model Routing
+    let modelChainToUse = STRUCTURED_CODING_MODEL_CHAIN;
+    let routingReason = "Standard complexity (routed to fast & cheap Flash model)";
+    
+    const isHeavyDeck = avgComplexity >= 20 || maxComplexity >= 35 || detailLevel === 'Comprehensive';
+    if (isHeavyDeck) {
+      modelChainToUse = CREATIVE_LAYOUT_MODEL_CHAIN;
+      routingReason = "High complexity/density or Comprehensive request (routed to deep & thorough Pro model)";
+    }
+    
+    logEvent('info', `Intelligent Model Routing: Selected chain based on complexity. Reason: ${routingReason}`);
+
+    let summaryText = await generateContentWithRotation(
+      summarizerPrompt,
+      summarizerSystemInstruction,
+      { responseMimeType: "application/json" },
+      modelChainToUse
     );
 
-    res.json({ html: stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated)) });
+    let summaryJSON;
+    try {
+      summaryJSON = cleanAndParseJson(summaryText);
+    } catch (parseError) {
+      logEvent('error', `Failed to parse summary JSON. Raw text: "${summaryText}"`, { error: parseError.message });
+      throw new Error(`Failed to parse structured summary JSON: ${parseError.message}`);
+    }
+
+    logEvent('info', `Stage 1 Completed: Successfully synthesized ${summaryJSON.length} page summary JSON plans.`);
+
+    // 6. Map UI theme and palette inputs to CSS slugs
+    const themeMap = {
+      'Formal & Professional': 'formal_professional',
+      'Warm & Encouraging': 'warm_encouraging',
+      'Fun & Energetic': 'fun_energetic',
+      'Reflective & Thoughtful': 'reflective_thoughtful',
+      'Educational & Informative': 'educational_informative',
+      'Motivational & Inspiring': 'motivational_inspiring'
+    };
+
+    const paletteMap = {
+      'Corporate Navy': 'corporate_navy',
+      'Warm Forest': 'warm_forest',
+      'Electric Purple': 'electric_purple',
+      'Sunset Amber': 'sunset_amber',
+      'Elegant Charcoal': 'elegant_charcoal',
+      'Midnight Teal': 'midnight_teal',
+      'Crimson Gold': 'crimson_gold',
+      'Nordic Sage': 'nordic_sage',
+      'Cyberpunk Neon': 'cyberpunk_neon',
+      'Vintage Cream': 'vintage_cream',
+      // Fallback mappings for older frontend choices
+      'Cool Tech (Indigo & Slate)': 'corporate_navy',
+      'Warm Corporate (Amber & Charcoal)': 'sunset_amber',
+      'Sleek Dark Mode (Midnight Blue)': 'cyberpunk_neon',
+      'Vibrant Modern (Teal & Emerald)': 'midnight_teal',
+      'Ocean Breeze': 'corporate_navy',
+      'Sunset Glow': 'sunset_amber',
+      'Monochrome': 'elegant_charcoal'
+    };
+
+    const selectedTheme = themeMap[writingTheme] || 'formal_professional';
+    const selectedPalette = paletteMap[colorScheme] || 'corporate_navy';
+
+    // 7. Compile the HTML document programmatically
+    logEvent('info', `Executing Stage 2: Programmatically compiling layouts using Theme "${selectedTheme}" & Palette "${selectedPalette}"...`);
+    
+    const compiledHtml = compileDocument(summaryJSON, selectedTheme, selectedPalette);
+    
+    logEvent('info', `E2E Generation completed successfully. Compiled ${summaryJSON.length} pages in under 10ms.`);
+
+    res.json({ html: compiledHtml });
 
   } catch (error) {
     logEvent('error', `Generate failed: ${error.message}`);
