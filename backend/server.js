@@ -177,25 +177,42 @@ logEvent('info', `Configured Gemini API keys for rotation: ${apiKeys.length}`);
  * Model priority chain for fallback routing.
  * Attempts execution across models in priority order to prevent 429 quota exhaustion.
  */
-const MODEL_FALLBACK_CHAIN = [
-  'gemini-3.5-flash',
-  'gemini-3.1-pro-preview',
+// 1. For simple background tasks (Summarization)
+const SUMMARIZATION_MODEL_CHAIN = [
   'gemini-3.1-flash-lite',
-  'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
   'gemini-2.0-flash'
 ];
 
-/**
- * Model priority chain for lightweight tasks (like chat summarization).
- */
-const LIGHT_MODEL_FALLBACK_CHAIN = [
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
+// 2. For instant conversational UI (Speaker Notes Chat)
+const CHAT_MODEL_CHAIN = [
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-3.5-flash'
+  'gemini-3.1-flash-lite'
 ];
+
+// 3. For creative, complex coding & visual layout (Stage 2 HTML Draft)
+const CREATIVE_LAYOUT_MODEL_CHAIN = [
+  'gemini-3.1-pro-preview',
+  'gemini-2.5-pro',
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash'
+];
+
+// 4. For structured JSON planning & surgical code edits (Stage 1, Stage 3, & Revisions)
+const STRUCTURED_CODING_MODEL_CHAIN = [
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-3.1-pro-preview',
+  'gemini-2.5-pro'
+];
+
+// Keep the old constants as fallback aliases for backward compatibility
+const MODEL_FALLBACK_CHAIN = STRUCTURED_CODING_MODEL_CHAIN;
+const LIGHT_MODEL_FALLBACK_CHAIN = SUMMARIZATION_MODEL_CHAIN;
 
 /**
  * Helper function to determine if we should fall back to the next model in the chain.
@@ -213,7 +230,7 @@ const isFallbackTrigger = (error) => {
  */
 async function generateContentWithFallback(contents, systemInstruction, extraConfig = {}, modelChain = MODEL_FALLBACK_CHAIN) {
   if (apiKeys.length === 0) {
-    const errorMsg = "No Gemini API keys configured. Please add keys to your backend/.env file.";
+    const errorMsg = "No AI service API keys configured. Please add keys to your backend/.env file.";
     logEvent('error', errorMsg);
     throw new Error(errorMsg);
   }
@@ -305,7 +322,6 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
                 model: modelName,
                 config: {
                   contents: cacheContents,
-                  systemInstruction,
                   ttl: '600s' // 10 minutes TTL
                 }
               });
@@ -329,13 +345,14 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
         let responseText;
 
         if (cacheToUse) {
-          // If we use a cache, we must NOT pass systemInstruction in config
+          // Pass the systemInstruction at query time when using the cache
           const { cachedContentHash, topic, toc, currentDocument, ...restConfig } = extraConfig;
           const response = await ai.models.generateContent({
             model: modelName,
             contents: contents,
             config: {
               cachedContent: cacheToUse,
+              ...(systemInstruction ? { systemInstruction } : {}),
               ...restConfig
             }
           });
@@ -400,7 +417,7 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
   }
 
   // If all models and keys failed
-  const finalErrorMsg = "All Gemini models and rotating API keys failed. Check your network, authentication, or API quota status.";
+  const finalErrorMsg = "All AI models and rotating API keys failed. Check your network, authentication, or API quota status.";
   logEvent('error', finalErrorMsg, { allErrors: errors });
   
   const finalError = new Error(finalErrorMsg);
@@ -412,15 +429,15 @@ ${extraConfig.currentDocument || '(Empty Document)'}` }]
 /**
  * Legacy wrapper to maintain compatibility with existing generate calls.
  */
-async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}) {
-  return generateContentWithFallback(prompt, systemInstruction, extraConfig);
+async function generateContentWithRotation(prompt, systemInstruction, extraConfig = {}, modelChain = undefined) {
+  return generateContentWithFallback(prompt, systemInstruction, extraConfig, modelChain);
 }
 
 /**
  * Executes a stateless chat turn, appending the user prompt to the history,
  * calling the fallback router, and appending the model response.
  */
-async function executeStatelessChatTurn(history, newPrompt, systemInstruction, extraConfig = {}) {
+async function executeStatelessChatTurn(history, newPrompt, systemInstruction, extraConfig = {}, modelChain = undefined) {
   const updatedHistory = [...history];
   if (newPrompt) {
     updatedHistory.push({
@@ -429,7 +446,7 @@ async function executeStatelessChatTurn(history, newPrompt, systemInstruction, e
     });
   }
   
-  const generatedText = await generateContentWithFallback(updatedHistory, systemInstruction, extraConfig);
+  const generatedText = await generateContentWithFallback(updatedHistory, systemInstruction, extraConfig, modelChain);
   
   updatedHistory.push({
     role: 'model',
@@ -689,7 +706,12 @@ function stripPrintUnfriendlyStyles(html) {
 
   /* SCREEN-ONLY STYLING — Separate pages visually like a real PDF document */
   @media screen {
+    html, body {
+      max-width: none !important;
+      overflow: auto !important;
+    }
     .page {
+      max-width: none !important;
       margin: 0 auto 24px auto !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
       border-radius: 4px !important;
@@ -838,7 +860,7 @@ app.get('/api/logs', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Gemini Key Rotation Debug Logs</title>
+      <title>AI Key Rotation Debug Logs</title>
       <style>
         :root {
           --bg-color: #0f172a;
@@ -1000,7 +1022,7 @@ app.get('/api/logs', (req, res) => {
       <div class="container">
         <header>
           <div>
-            <h1>Gemini Key Rotation Logs</h1>
+            <h1>AI Key Rotation Logs</h1>
             <p style="margin: 4px 0 0 0; color: var(--text-muted); font-size: 0.9rem;">
               Monitoring API health and key rotation events in real-time. (Auto-refreshes every 10s)
             </p>
@@ -1015,7 +1037,7 @@ app.get('/api/logs', (req, res) => {
           <!-- Quota Checker Table -->
           <section style="margin-bottom: 2rem; background-color: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <h2 style="margin: 0; font-size: 1.3rem; color: var(--info-color);">Gemini API Keys Quota Status</h2>
+              <h2 style="margin: 0; font-size: 1.3rem; color: var(--info-color);">AI API Keys Quota Status</h2>
               <a href="/api/check-quotas" class="btn btn-primary" style="background-color: var(--info-color); color: #0f172a; border-radius: 6px; padding: 0.4rem 0.8rem; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">🔄 Check Quotas Now</a>
             </div>
             <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
@@ -1100,7 +1122,7 @@ app.post('/api/summarize-chats', async (req, res) => {
       contents,
       systemInstruction,
       { responseMimeType: "text/plain" },
-      LIGHT_MODEL_FALLBACK_CHAIN
+      SUMMARIZATION_MODEL_CHAIN
     );
 
     res.json({ summary: summaryText.trim() });
@@ -1167,8 +1189,14 @@ You operate in a sequence of stages:
    - Only after understanding their intent or receiving instructions should you generate the revised draft (populating 'proposedSectionContent') and offer: ["Send to Document"].
    - Once committed (action = "approve_section"), return nextStage to "complete".
 6. Completion ("complete"):
-   - The document is finished! Congratulate the user.
-   - Propose options to edit each section, e.g. ["Edit Section 1: Intro", "Edit Section 2: Body", ...] and "Generate Takeaway Notes".
+   - If the user just finished editing a section (e.g. they clicked "Send to Document" or said "Update these revised notes..."), confirm that the edits have been successfully made to that specific section.
+   - Do NOT automatically select, suggest, or transition to the next section.
+   - Ask the user if they want to edit any other sections. Propose options to edit other sections, e.g. ["Edit Section 1: Intro", "Edit Section 2: Body", ...] and a final option ["No, I am happy with the document"].
+   - If the user says "No", selects "No, I am happy with the document", or indicates they are happy with the document:
+     - Respond with "Excellent!" or a warm congratulatory message, wish them well, and inform them that they can now download the document as a PDF (using the "Print / Save PDF" button on the top right) or proceed to other functions (like generating takeaway notes using the button at the top).
+     - Do NOT offer a choice of creating takeaway notes in the chat.
+     - Do NOT provide any options/buttons in the "options" array (return an empty array [] for "options" once they are happy).
+     - However, if the user later inputs a manual request in the chat, fulfill it as requested.
  
 Current State of the Workspace:
 - Presentation Topic: "${topic || 'Not set yet'}"
@@ -1198,6 +1226,7 @@ You must ALWAYS respond with a JSON object. The JSON object must match this sche
 Contextual Guidelines:
 - Document Awareness & Context: The 'Current Document Content' above contains the actual text/content that has already been generated, approved, and added to the presentation document. You must treat this document content as background context and the absolute ground truth. You must remain fully aware of what is already in the document, so that when the user refers to it, you understand it perfectly.
 - Section Name Alignment: The section names used in your proposed section content headers (e.g. <h2>Section Name</h2> in 'proposedSectionContent') MUST match the section names defined in the Table of Contents ('toc') and the document layout exactly. Do not invent new section names or modify them.
+- Section Numbering Alignment: Remember that 'currentSectionIndex' is a 0-based index (e.g. index 0 is Section 1, index 1 is Section 2, etc.). When referring to a section, always refer to it as "Section {index + 1}: {name}" to ensure you never mix up section numbers and section names.
 - Detailed & Explanatory Drafts: The proposed speaker notes (in 'proposedSectionContent') must not be too concise. They should be highly descriptive, explanatory, and thorough, providing comprehensive talking points and details for the presenter.
 - Strict Flow Execution: You must strictly follow the document structure and flows that the user has approved and committed to the document. Do not drift from the ideas and outlines established in the Table of Contents.
 - Persistent Context: You have access to the full chat log and the entire generated document. Always use this information to maintain perfect context.
@@ -1207,7 +1236,7 @@ Contextual Guidelines:
     // Compute hash for context caching
     const cachedContentHash = getContentHash(systemInstruction, topic, toc, currentDocument);
 
-    // Execute stateless chat turn using fallback router
+    // Execute stateless chat turn using fallback router with CHAT_MODEL_CHAIN
     const result = await executeStatelessChatTurn(
       history,
       lastMessage,
@@ -1218,7 +1247,8 @@ Contextual Guidelines:
         topic,
         toc,
         currentDocument
-      }
+      },
+      CHAT_MODEL_CHAIN
     );
 
     let parsedResponse;
@@ -1362,7 +1392,12 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
 
     const blueprintPrompt = `Task: Design a page-by-page visual blueprint. Source: ${combinedSourceText.substring(0, 150000)}. Preferences: ${writingTheme}, ${detailLevel}. Metadata: ${metadataBlock}. ${extractionInstructions}. JSON Schema: [{"pageNumber", "pageType", "pageTitle", "sections": [{"elementId", "elementType", "title", "topicsToCover", "wordBudget", "layoutStylingDetails"}]}].`;
 
-    let blueprintText = await generateContentWithRotation(blueprintPrompt, blueprintSystemInstruction, { responseMimeType: "application/json" });
+    let blueprintText = await generateContentWithRotation(
+      blueprintPrompt,
+      blueprintSystemInstruction,
+      { responseMimeType: "application/json" },
+      STRUCTURED_CODING_MODEL_CHAIN
+    );
     let blueprintJSON;
     try {
       blueprintJSON = cleanAndParseJson(blueprintText);
@@ -1398,7 +1433,12 @@ app.post('/api/generate', upload.array('files'), async (req, res) => {
 
     const htmlPrompt = `Task: Generate notes per blueprint: ${JSON.stringify(blueprintJSON)}. Theme: ${vibeInstruction}. Color: ${colorInstruction}. Requirements: Separate A4 containers (<div class="page">...</div>) for each page with narrow margins (exactly 12mm padding), fancy Google Fonts on headings, strict class-based font size hierarchy (Title: 40px, Subtitle: 32px, Section Title: 28px, Header: 24px, Sub-header: 20px, Box Header: 16px, Body: 14px, Page Number: 11px), page numbers bottom-aligned, print-safe styles, no hover, no overflow. Pack content efficiently to minimize page count.`;
 
-    let htmlDraft = await generateContentWithRotation(htmlPrompt, htmlSystemInstruction);
+    let htmlDraft = await generateContentWithRotation(
+      htmlPrompt,
+      htmlSystemInstruction,
+      {},
+      CREATIVE_LAYOUT_MODEL_CHAIN
+    );
 
     // ── STAGE 3: HTML Validation Prompts ───────────────────────────────────
     logEvent('info', 'Executing Stage 3: Running HTML validation...');
@@ -1423,7 +1463,12 @@ Checklist of violations you MUST correct if present:
 
 Return ONLY the final corrected HTML/CSS code. Do NOT wrap in markdown code fences and do NOT add any conversational text.
 `;
-    let htmlValidated = await generateContentWithRotation(validatorPrompt, validatorSystemInstruction);
+    let htmlValidated = await generateContentWithRotation(
+      validatorPrompt,
+      validatorSystemInstruction,
+      {},
+      STRUCTURED_CODING_MODEL_CHAIN
+    );
 
     res.json({ html: stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated)) });
 
@@ -1475,7 +1520,12 @@ ${JSON.stringify(preferences || {})}
 Please update the HTML/CSS code to implement the user's instructions, ensuring the page-by-page A4 layout (.page wrappers) is maintained. Keep all content unless the user asked to remove it. Return ONLY the final revised HTML code.
 `;
 
-    const rawAiResponse = await generateContentWithRotation(prompt, systemInstruction);
+    const rawAiResponse = await generateContentWithRotation(
+      prompt,
+      systemInstruction,
+      {},
+      STRUCTURED_CODING_MODEL_CHAIN
+    );
 
     // ==========================================
     // REVISION STAGE 2: REVISION VALIDATION
@@ -1505,7 +1555,12 @@ Checklist of violations you MUST correct if present:
 Return ONLY the final corrected HTML/CSS code. Do NOT add markdown code fences (like \`\`\`html) or any conversational text.
 `;
 
-    let htmlValidated = await generateContentWithRotation(validatorPrompt, validatorSystemInstruction);
+    let htmlValidated = await generateContentWithRotation(
+      validatorPrompt,
+      validatorSystemInstruction,
+      {},
+      STRUCTURED_CODING_MODEL_CHAIN
+    );
     const cleanHTML = stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated));
 
     res.json({ html: cleanHTML });

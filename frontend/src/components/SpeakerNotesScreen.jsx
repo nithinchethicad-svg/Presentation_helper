@@ -23,7 +23,7 @@ const SpeakerNotesScreen = ({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [options, setOptions] = useState([]);
+  const [, setOptions] = useState([]);
   const [chatSummary, setChatSummary] = useState('');
   const [lastSummarizedIndex, setLastSummarizedIndex] = useState(0);
 
@@ -782,7 +782,6 @@ const SpeakerNotesScreen = ({
 
   // Helper: Append or edit section notes as a page in the document
   const applySectionApproval = (sectionHtml) => {
-    const titleToUse = topic || 'Speaker Notes';
     
     // Parse current documentHtml using DOMParser
     const parser = new DOMParser();
@@ -1482,7 +1481,7 @@ const SpeakerNotesScreen = ({
                   ? "AI is thinking..." 
                   : stage === 'title_brainstorm'
                     ? "Describe your topic or suggest a title..."
-                    : "Type feedback or custom details for Gemini..."
+                    : "Type feedback or custom details for AI..."
               }
               disabled={isLoading}
               style={{

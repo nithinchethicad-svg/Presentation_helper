@@ -30,28 +30,20 @@ const ViewerScreen = ({
             background-color: #525659 !important;
             margin: 0 !important;
             padding: 20px 10px !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
+            display: block !important; /* Use block layout so horizontal overflow doesn't clip the left side of the page */
             min-height: 100vh !important;
             box-sizing: border-box !important;
+            max-width: none !important;
+            overflow: auto !important;
           }
 
           /* Visual page breaks on screen */
           .page {
+            max-width: none !important;
             margin: 0 auto 24px auto !important;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
             border-radius: 4px !important;
             background-color: white !important;
-          }
-
-          /* Enforce responsive scaling on mobile screen viewports */
-          @media (max-width: 840px) {
-            .page {
-              width: 90vw !important;
-              min-height: calc(90vw * 1.414) !important;
-              padding: 5vw !important;
-            }
           }
         }
 
@@ -161,8 +153,19 @@ const ViewerScreen = ({
         }
 
         /* Keep page-level boundaries but hide horizontal scrollbars on printing */
-        html, body, .page {
-          overflow-x: hidden !important;
+        @media print {
+          html, body, .page {
+            overflow-x: hidden !important;
+          }
+        }
+        @media screen {
+          html, body {
+            max-width: none !important;
+            overflow: auto !important;
+          }
+          .page {
+            max-width: none !important;
+          }
         }
 
         /* Kill all colour changes on hover — document must be print-static */

@@ -1153,19 +1153,48 @@ body {
 }
 
 .home-card:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 20px 25px -5px rgb(99 102 241 / 0.08), 0 10px 10px -6px rgb(99 102 241 / 0.08) !important;
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.1), 0 10px 10px -6px rgba(99, 102, 241, 0.05) !important;
   border-color: var(--primary) !important;
 }
 
-.home-card:nth-child(2):hover {
-  box-shadow: 0 20px 25px -5px rgb(245 158 11 / 0.08), 0 10px 10px -6px rgb(245 158 11 / 0.08) !important;
-  border-color: #f59e0b !important;
+/* Card CTA Solid Buttons - brand blue/indigo */
+.card-cta-button {
+  margin-top: auto;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  background-color: var(--primary);
+  color: white !important;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.15), 0 2px 4px -1px rgba(79, 70, 229, 0.1);
+  box-sizing: border-box;
 }
 
-.home-card:nth-child(3):hover {
-  box-shadow: 0 20px 25px -5px rgb(16 185 129 / 0.08), 0 10px 10px -6px rgb(16 185 129 / 0.08) !important;
-  border-color: var(--success) !important;
+.card-cta-button span {
+  transition: transform 0.2s ease;
+}
+
+.card-cta-button:hover {
+  background-color: #4338ca; /* Indigo-700 darker */
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.25), 0 4px 6px -4px rgba(79, 70, 229, 0.2);
+  transform: translateY(-1px);
+}
+
+.card-cta-button:hover span:last-child {
+  transform: translateX(3px);
+}
+
+.card-cta-button:active {
+  transform: translateY(0);
 }
 
 /* Custom scrollbar for Chat history log */

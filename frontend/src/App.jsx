@@ -24,7 +24,7 @@ const DEFAULT_PREFERENCES = {
   strictFileContentOnly: true,
 };
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = `http://${window.location.hostname}:5000`;
 
 // Human-readable loading stages shown in the progress bar
 const LOADING_STAGES = [
@@ -176,7 +176,7 @@ function App() {
         if (data.error === 'rate_limit_exceeded') {
           throw {
             title: 'Daily Limit Reached',
-            desc: 'All 7 Gemini API keys have exceeded their free rate limits for the day. Please try again tomorrow or contact support.'
+            desc: 'All rotating AI service keys have exceeded their free rate limits for the day. Please try again tomorrow or contact support.'
           };
         } else {
           throw {
@@ -223,7 +223,7 @@ function App() {
         if (data.error === 'rate_limit_exceeded') {
           throw {
             title: 'Daily Limit Reached',
-            desc: 'All 7 Gemini API keys have exceeded their free rate limits for the day. Please try again later.'
+            desc: 'All rotating AI service keys have exceeded their free rate limits for the day. Please try again later.'
           };
         } else {
           throw {
