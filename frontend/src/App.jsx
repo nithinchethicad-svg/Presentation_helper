@@ -46,6 +46,7 @@ function App() {
   const [preferences, setPreferences] = useState({ ...DEFAULT_PREFERENCES });
   
   const [generatedHtml, setGeneratedHtml] = useState('');
+  const [summaryJson, setSummaryJson] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState(null);
   const [isRevising, setIsRevising] = useState(false);
@@ -142,6 +143,7 @@ function App() {
     setPresentationSlides(null);
     setPreferences({ ...DEFAULT_PREFERENCES });
     setGeneratedHtml('');
+    setSummaryJson(null);
     setIsLoading(false);
     setIsRevising(false);
     setError(null);
@@ -203,6 +205,7 @@ function App() {
       }
 
       setGeneratedHtml(data.html);
+      setSummaryJson(data.json);
     } catch (err) {
       console.error("Fetch error:", err);
       setError({
@@ -229,7 +232,7 @@ function App() {
           'X-Latency-Budget': 'high_speed'
         },
         body: JSON.stringify({
-          currentHtml: generatedHtml,
+          summaryJson: summaryJson,
           instructions,
           preferences
         })
@@ -252,6 +255,7 @@ function App() {
       }
 
       setGeneratedHtml(data.html);
+      setSummaryJson(data.json);
     } catch (err) {
       console.error("Revision error:", err);
       setError({

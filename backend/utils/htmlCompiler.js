@@ -15,8 +15,6 @@ function safeReadFile(filePath, fallbackContent = "") {
 
 /**
  * Loads AI-generated SVG assets for the active vibe theme.
- * Returns empty strings for any assets that haven't been generated yet
- * (CSS hides the slots by default, so missing files are a no-op).
  * @param {string} themeSlug - The active theme slug.
  * @returns {{ cornerTr: string, cornerBl: string, border: string, margin: string, bgPattern: string }}
  */
@@ -38,21 +36,203 @@ function loadThemeSvgs(themeSlug) {
 }
 
 /**
- * Compiles page JSONs, themes, and palettes into a single A4 print-ready HTML document.
- * Supporting a Section-Block Composite Page Architecture.
+ * JSON-Level Section Splitting Validator (Content Validation).
+ * Inspects each section's content sizes and splits them if they exceed strict capacity thresholds.
+ * @param {Array} pages - Original pages array.
+ * @returns {Array} New pages array with split sections.
+ */
+function validateAndSplitSections(pages) {
+  const processedPages = [];
+
+  for (const page of pages) {
+    let sections = page.sections;
+    if (!sections || !Array.isArray(sections)) {
+      // Compatibility wrapper
+      sections = [{
+        ...page,
+        sectionType: page.pageType || 'StandardTextBlock'
+      }];
+    }
+
+    const newSectionsList = [];
+
+    for (const section of sections) {
+      const sectionType = section.sectionType || section.pageType || "";
+
+      if (sectionType === 'StandardTextBlock' || sectionType === 'StandardText') {
+        const bullets = section.bullets || [];
+        // Threshold: split standard text lists if they exceed 6 bullets
+        if (bullets.length > 6) {
+          const chunkSize = 5;
+          for (let k = 0; k < bullets.length; k += chunkSize) {
+            const chunk = bullets.slice(k, k + chunkSize);
+            newSectionsList.push({
+              ...section,
+              header: k === 0 ? section.header : `${section.header} (Continued)`,
+              bullets: chunk
+            });
+          }
+        } else {
+          newSectionsList.push(section);
+        }
+      } 
+      else if (sectionType === 'DataTable') {
+        const rows = section.rows || [];
+        const headers = section.headers || [];
+        // Threshold: split data tables if they exceed 6 rows
+        if (rows.length > 6) {
+          const chunkSize = 5;
+          for (let k = 0; k < rows.length; k += chunkSize) {
+            const chunk = rows.slice(k, k + chunkSize);
+            newSectionsList.push({
+              ...section,
+              header: k === 0 ? (section.header || 'Data Table') : `${section.header || 'Data Table'} (Continued)`,
+              headers: headers,
+              rows: chunk
+            });
+          }
+        } else {
+          newSectionsList.push(section);
+        }
+      }
+      else if (sectionType === 'ProcessTimeline') {
+        const steps = section.steps || [];
+        // Threshold: split process timelines if they exceed 5 steps
+        if (steps.length > 5) {
+          const chunkSize = 4;
+          for (let k = 0; k < steps.length; k += chunkSize) {
+            const chunk = steps.slice(k, k + chunkSize);
+            newSectionsList.push({
+              ...section,
+              header: k === 0 ? (section.header || 'Process Timeline') : `${section.header || 'Process Timeline'} (Continued)`,
+              steps: chunk
+            });
+          }
+        } else {
+          newSectionsList.push(section);
+        }
+      }
+      else {
+        // Fallback: don't split other fixed layout shapes
+        newSectionsList.push(section);
+      }
+    }
+
+    processedPages.push({
+      ...page,
+      sections: newSectionsList
+    });
+  }
+
+  return processedPages;
+}
+
+/**
+ * Visual Weight Calculator for sections.
+ * Returns the estimated vertical height weight percentage (0-100%).
+ */
+function calculateSectionWeight(section) {
+  const sectionType = section.sectionType || section.pageType || "";
+  
+  if (sectionType === 'CoverBlock' || sectionType === 'CoverPage') return 100;
+  if (sectionType === 'DataTable' || sectionType === 'ProcessTimeline') return 70;
+  if (sectionType === 'MultiCardGrid') return 55;
+  if (sectionType === 'TwoColumnBlock' || sectionType === 'TwoColumnSplit' || sectionType === 'MediaBlock' || sectionType === 'MixedMedia') return 45;
+  if (sectionType === 'HeroCallout') return 35;
+  
+  if (sectionType === 'StandardTextBlock' || sectionType === 'StandardText') {
+    const bulletsCount = (section.bullets || []).length;
+    return 15 + (bulletsCount * 5); // 15% base + 5% per bullet
+  }
+  
+  return 30; // default fallback weight
+}
+
+/**
+ * Paging Reflow Algorithm (Sequential Shift & Smart Page Absorption).
+ * Flattens all content sections and re-partitions them into A4 pages ensuring no page exceeds 100% weight.
+ * @param {Array} pages - Split pages array.
+ * @returns {Array} Reflowed and neatly partitioned pages array.
+ */
+function reflowPages(pages) {
+  const reflowed = [];
+  const normalSections = [];
+  
+  // Track the first normal page's details to reuse title/header keys
+  let basePageTitle = "Key Highlights";
+
+  for (const page of pages) {
+    const sections = page.sections || [];
+    const hasCover = sections.some(s => s.sectionType === 'CoverBlock' || s.sectionType === 'CoverPage');
+
+    if (hasCover) {
+      // Cover pages are always kept intact on Page 1 as standalone sheets
+      reflowed.push(page);
+    } else {
+      if (page.pageTitle || page.title) {
+        basePageTitle = page.pageTitle || page.title;
+      }
+      // Collect all normal sections into a single flat list
+      normalSections.push(...sections);
+    }
+  }
+
+  if (normalSections.length === 0) {
+    return reflowed;
+  }
+
+  // Partition the flat section list into A4 pages (max weight 100% per page)
+  let currentPageSections = [];
+  let currentPageWeight = 0;
+  let pageIndex = reflowed.length + 1;
+
+  for (const section of normalSections) {
+    const weight = calculateSectionWeight(section);
+
+    // If adding this section exceeds 100% weight, push the current page and start a new one
+    if (currentPageSections.length > 0 && currentPageWeight + weight > 100) {
+      reflowed.push({
+        pageTitle: currentPageSections[0]?.header || `${basePageTitle} (Page ${pageIndex})`,
+        sections: currentPageSections
+      });
+      pageIndex++;
+      currentPageSections = [];
+      currentPageWeight = 0;
+    }
+
+    currentPageSections.push(section);
+    currentPageWeight += weight;
+  }
+
+  // Push the final remaining page
+  if (currentPageSections.length > 0) {
+    reflowed.push({
+      pageTitle: currentPageSections[0]?.header || `${basePageTitle} (Page ${pageIndex})`,
+      sections: currentPageSections
+    });
+  }
+
+  return reflowed;
+}
+
+/**
+ * Compiles page JSONs, themes, and palettes into a A4 print-ready HTML document.
  * @param {Array} pages - Array of page JSON objects.
- * @param {string} theme - Selected theme name (slug, e.g. 'formal_professional').
- * @param {string} palette - Selected palette name (slug, e.g. 'corporate_navy').
- * @returns {string} Fully compiled HTML document.
+ * @param {string} theme - Selected theme name (slug).
+ * @param {string} palette - Selected palette name (slug).
+ * @returns {{ html: string, json: Array }} Compiled HTML document and the reflowed JSON.
  */
 function compileDocument(pages, theme, palette) {
   const templatesDir = path.join(__dirname, '../templates');
   
-  // 1. Load Axis CSS Files
+  // 1. Run Content Validation (Splitting) & the Paging Reflow Algorithm
+  const splitPages = validateAndSplitSections(pages);
+  const reflowedPages = reflowPages(splitPages);
+
+  // 2. Load Core CSS Files
   const globalCss = safeReadFile(path.join(templatesDir, 'global.css'), '/* fallback global */');
   const localFontsCss = safeReadFile(path.join(templatesDir, 'local_fonts.css'), '');
   
-  // Clean theme & palette slugs for security (allow alphanumeric and underscores only)
   const themeSlug = (theme || 'formal_professional').replace(/[^a-zA-Z0-9_]/g, '');
   const paletteSlug = (palette || 'corporate_navy').replace(/[^a-zA-Z0-9_]/g, '');
   
@@ -61,36 +241,26 @@ function compileDocument(pages, theme, palette) {
     safeReadFile(path.join(templatesDir, 'themes', 'formal_professional.css'), '')
   );
 
-  // Load AI-generated SVG decorations for this theme (empty strings if not yet generated)
   const themeSvgs = loadThemeSvgs(themeSlug);
   const paletteCss = safeReadFile(
     path.join(templatesDir, 'palettes', `${paletteSlug}.css`), 
     safeReadFile(path.join(templatesDir, 'palettes', 'corporate_navy.css'), '')
   );
 
-  // 2. Map JSON structures to Page HTML Blocks
+  // 3. Map JSON structures to Page HTML Blocks
   const compiledPages = [];
-  const totalPages = pages.length;
+  const totalPages = reflowedPages.length;
 
-  for (let i = 0; i < pages.length; i++) {
-    const page = pages[i];
+  for (let i = 0; i < reflowedPages.length; i++) {
+    const page = reflowedPages[i];
     const pageNum = i + 1;
-    
-    // Resolve sections (handling both new nested schema and legacy flat page schemas)
-    let sections = page.sections;
-    if (!sections || !Array.isArray(sections)) {
-      // Backwards compatibility: Wrap flat page fields as a single section block
-      sections = [{
-        ...page,
-        sectionType: page.pageType || 'StandardTextBlock'
-      }];
-    }
+    const sections = page.sections || [];
 
     let sectionsContent = "";
     let hasCover = false;
 
     for (const section of sections) {
-      let sectionType = section.sectionType || section.pageType || "";
+      const sectionType = section.sectionType || section.pageType || "";
       let presetId = 'standard_text'; // Default fallback
       
       if (sectionType === 'CoverBlock' || sectionType === 'CoverPage') {
@@ -105,7 +275,7 @@ function compileDocument(pages, theme, palette) {
       else if (sectionType === 'MediaBlock' || sectionType === 'MixedMedia') presetId = 'media_wrapped';
       else if (sectionType === 'StandardTextBlock' || sectionType === 'StandardText') presetId = 'standard_text';
 
-      let templateHtml = safeReadFile(
+      const templateHtml = safeReadFile(
         path.join(templatesDir, 'components', `${presetId}.html`),
         '<!-- fallback --><div class="card"><h3>{{title}}</h3></div>'
       );
@@ -141,7 +311,7 @@ function compileDocument(pages, theme, palette) {
       else if (presetId === 'grid') {
         const cardList = section.cards || [];
         const cardsGridHtml = cardList
-          .slice(0, 4) // max 4 cards
+          .slice(0, 4)
           .map(c => `
             <div class="card">
               <h4 class="card-title">${c.header || 'Key Point'}</h4>
@@ -155,7 +325,7 @@ function compileDocument(pages, theme, palette) {
       else if (presetId === 'timeline') {
         const stepsList = section.steps || [];
         const timelineHtml = stepsList
-          .slice(0, 5) // max 5 steps
+          .slice(0, 5)
           .map((s, idx) => `
             <div class="timeline-item">
               <div class="timeline-badge">${s.stepNumber || (idx + 1)}</div>
@@ -232,13 +402,9 @@ function compileDocument(pages, theme, palette) {
     }
 
     if (hasCover) {
-      // Cover pages are self-contained layouts containing their own .page wrapper and styles.
-      // We don't wrap them in the master page shell (omits headers, footers, and page numbers naturally).
       compiledPages.push(sectionsContent);
     } else {
-      // Normal pages: wrap dynamic section stack inside the print-safe A4 master page shell.
       const pageShell = safeReadFile(path.join(templatesDir, 'page_shell.html'), '{{sectionsContent}}');
-      
       const pageTitle = page.pageTitle || page.title || 'Key Highlights';
       
       const compiledPage = pageShell
@@ -256,7 +422,7 @@ function compileDocument(pages, theme, palette) {
     }
   }
 
-  // 3. Assemble complete HTML shell
+  // 4. Assemble complete HTML shell
   const htmlOutput = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -282,10 +448,132 @@ function compileDocument(pages, theme, palette) {
 </body>
 </html>`;
 
-  return htmlOutput;
+  return {
+    html: htmlOutput,
+    json: reflowedPages
+  };
+}
+
+/**
+ * Compiles Speaker Notes sections into a distraction-free, local, print-safe HTML document.
+ * Utilizing Inter + Lora typography. Supports options for Cover + ToC isolation.
+ * @param {Array} sections - Array of speaker notes section strings or objects.
+ * @param {string} title - Presentation Title.
+ * @param {string} subtitle - Presentation Subtitle.
+ * @param {Object} options - Custom options: { toc: Array, excludeCover: boolean, excludeContent: boolean }
+ * @returns {string} Fully compiled Speaker Notes HTML document.
+ */
+function compileSpeakerNotes(sections, title, subtitle, options = {}) {
+  const templatesDir = path.join(__dirname, '../templates');
+  const localFontsCss = safeReadFile(path.join(templatesDir, 'local_fonts.css'), '');
+  const speakerNotesCss = safeReadFile(path.join(templatesDir, 'themes', 'speaker_notes.css'), '');
+  const standardTemplate = safeReadFile(path.join(templatesDir, 'components', 'speaker_notes_standard.html'), '');
+
+  const compiledBlocks = [];
+
+  sections.forEach((section, idx) => {
+    let sectionTitle = `Section ${idx + 1}`;
+    let notesContent = "";
+
+    if (typeof section === 'string') {
+      notesContent = section;
+    } else if (section && typeof section === 'object') {
+      sectionTitle = section.title || section.header || sectionTitle;
+      notesContent = section.content || section.notesContent || "";
+    }
+
+    const compiledBlock = standardTemplate
+      .replace(/{{sectionIndex}}/g, idx)
+      .replace(/{{title}}/g, sectionTitle)
+      .replace(/{{notesContent}}/g, notesContent);
+
+    compiledBlocks.push(compiledBlock);
+  });
+
+  // Compile ToC list items if requested
+  let tocHtml = "";
+  if (options.toc && Array.isArray(options.toc)) {
+    tocHtml = options.toc.map((item, idx) => `
+      <div class="toc-item" style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 14px; font-weight: 500; color: #334155; margin-bottom: 14px; font-family: 'Inter', sans-serif;">
+        <span class="toc-title-wrapper" style="display: flex; align-items: center; flex-shrink: 0;">
+          <span class="toc-number-badge" style="background: #f1f5f9; color: #475569; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; margin-right: 10px;">${idx + 1}</span>
+          <span style="font-size: 14px; font-weight: 600; color: #1e293b;">${item}</span>
+        </span>
+        <span class="toc-item-dots" style="flex-grow: 1; border-bottom: 2px dotted #cbd5e1; margin: 0 10px; position: relative; top: -4px;"></span>
+        <span class="toc-page-num" style="color: #475569; font-weight: 700; font-size: 14px; flex-shrink: 0; white-space: nowrap;">Page ${idx + 2}</span>
+      </div>
+    `).join('');
+  }
+
+  const pages = [];
+
+  // Page 1: Cover and Table of Contents
+  if (!options.excludeCover) {
+    const coverHtml = `
+      <div class="page" id="page-1">
+        <div style="text-align: center; margin-top: 40px; margin-bottom: 30px;">
+          <h1 class="title">${title || 'Presentation Title'}</h1>
+          <p class="subtitle">${subtitle || 'Speaker Notes'}</p>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #cbd5e1; margin: 30px 0;">
+        <h2 class="section-title">Table of Contents</h2>
+        <div class="toc-list" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 40px;">
+          ${tocHtml || `
+            <div style="text-align: center; color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 11pt; padding: 20px;">
+              No sections defined in the outline yet.
+            </div>
+          `}
+        </div>
+        <div class="page-footer">
+          <span>${title || 'Speaker Notes'}</span>
+          <span>Page 1</span>
+        </div>
+      </div>
+    `;
+    pages.push(coverHtml);
+  }
+
+  // Page 2: Standard Content Page
+  if (!options.excludeContent && compiledBlocks.length > 0) {
+    const pageId = options.excludeCover ? "page-1" : "page-2";
+    const pageNum = options.excludeCover ? 1 : 2;
+    const contentHtml = `
+      <div class="page" id="${pageId}">
+        <div class="section-content-container" style="padding-bottom: 20mm;">
+          ${compiledBlocks.join('\n')}
+        </div>
+        <div class="page-footer">
+          <span>${title || 'Speaker Notes'}</span>
+          <span>Page ${pageNum}</span>
+        </div>
+      </div>
+    `;
+    pages.push(contentHtml);
+  }
+
+  const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title || 'Speaker Notes'}</title>
+  <style>
+    /* Local font declarations */
+    ${localFontsCss}
+
+    /* Distraction-Free Stylesheet */
+    ${speakerNotesCss}
+  </style>
+</head>
+<body>
+  ${pages.join('\n')}
+</body>
+</html>`;
+
+  return fullHtml;
 }
 
 module.exports = {
-  compileDocument
+  compileDocument,
+  compileSpeakerNotes
 };
-

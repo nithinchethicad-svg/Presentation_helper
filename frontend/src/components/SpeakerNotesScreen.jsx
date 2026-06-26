@@ -169,16 +169,48 @@ const SpeakerNotesScreen = ({
             .toc-item {
               display: flex !important;
               justify-content: space-between !important;
-              align-items: center !important;
-              font-size: 13px !important;
+              align-items: flex-end !important;
+              font-family: 'Inter', 'Segoe UI', sans-serif !important;
+              font-size: 14px !important;
               font-weight: 500 !important;
               color: #334155 !important;
+              margin-bottom: 12px !important;
+            }
+
+            .toc-title-wrapper {
+              display: flex !important;
+              align-items: center !important;
+              flex-shrink: 0 !important;
+            }
+
+            .toc-number-badge {
+              background: #f1f5f9 !important;
+              color: #475569 !important;
+              border-radius: 50% !important;
+              width: 24px !important;
+              height: 24px !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              font-weight: 700 !important;
+              font-size: 11px !important;
+              margin-right: 10px !important;
             }
 
             .toc-item-dots {
               flex-grow: 1 !important;
-              border-bottom: 1px dashed #cbd5e1 !important;
+              border-bottom: 2px dotted #cbd5e1 !important;
               margin: 0 10px !important;
+              position: relative !important;
+              top: -4px !important;
+            }
+
+            .toc-page-num {
+              color: #475569 !important;
+              font-weight: 700 !important;
+              font-size: 14px !important;
+              flex-shrink: 0 !important;
+              white-space: nowrap !important;
             }
 
             /* Page numbering placeholder at bottom */
@@ -831,12 +863,13 @@ const SpeakerNotesScreen = ({
   const applyToCApproval = (tocList, finalTopic) => {
     const titleToUse = finalTopic || topic || 'Speaker Notes';
     const tocHtml = tocList.map((item, idx) => `
-      <div class="toc-item" style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: #334155; margin-bottom: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px;">
-        <span style="display: flex; align-items: center;">
-          <span style="background: #f1f5f9; color: #475569; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; margin-right: 10px;">${idx + 1}</span>
-          <span>${item}</span>
+      <div class="toc-item" style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 14px; font-weight: 500; color: #334155; margin-bottom: 12px; font-family: 'Inter', sans-serif;">
+        <span class="toc-title-wrapper" style="display: flex; align-items: center; flex-shrink: 0;">
+          <span class="toc-number-badge" style="background: #f1f5f9; color: #475569; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; margin-right: 10px;">${idx + 1}</span>
+          <span style="font-size: 14px; font-weight: 600; color: #1e293b;">${item}</span>
         </span>
-        <span id="toc-page-num-${idx}" class="toc-page-num" style="color: #64748b; font-weight: 600; font-size: 0.8rem;"></span>
+        <span class="toc-item-dots" style="flex-grow: 1; border-bottom: 2px dotted #cbd5e1; margin: 0 10px; position: relative; top: -4px;"></span>
+        <span id="toc-page-num-${idx}" class="toc-page-num" style="color: #475569; font-weight: 700; font-size: 14px; flex-shrink: 0; white-space: nowrap;"></span>
       </div>
     `).join('');
 
@@ -1042,13 +1075,20 @@ const SpeakerNotesScreen = ({
       `xmlns='http://www.w3.org/TR/REC-html40'>` +
       `<head><title>${topic || 'Speaker Notes'}</title>` +
       `<style>` +
-      `body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.5; padding: 20px; }` +
-      `h1 { font-size: 20pt; color: #1e3a8a; font-weight: bold; margin-top: 18pt; margin-bottom: 6pt; }` +
-      `h2 { font-size: 16pt; color: #0f766e; font-weight: bold; margin-top: 14pt; margin-bottom: 6pt; }` +
-      `h3 { font-size: 13pt; color: #374151; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; }` +
-      `p { margin-top: 0; margin-bottom: 8pt; color: #334155; }` +
-      `ul, ol { margin-top: 0; margin-bottom: 8pt; padding-left: 20px; }` +
-      `li { margin-bottom: 4pt; color: #334155; }` +
+      `body { font-family: "Lora", "Georgia", "Times New Roman", serif; font-size: 11.5pt; line-height: 1.6; padding: 20px; color: #334155; }` +
+      `h1, h2, h3, h4, .speaker-section-title { font-family: "Inter", "Segoe UI", "Arial", sans-serif; font-weight: bold; color: #1e293b; }` +
+      `h1 { font-size: 22pt; color: #1e3a8a; margin-top: 18pt; margin-bottom: 8pt; }` +
+      `h2, .speaker-section-title { font-size: 16pt; color: #0f766e; margin-top: 16pt; margin-bottom: 8pt; }` +
+      `h3 { font-size: 13pt; color: #1e293b; margin-top: 12pt; margin-bottom: 6pt; }` +
+      `p { margin-top: 0; margin-bottom: 12pt; color: #334155; }` +
+      `ul, ol { margin-top: 0; margin-bottom: 12pt; padding-left: 20px; }` +
+      `li { margin-bottom: 6pt; color: #334155; }` +
+      `.toc-list { display: block; margin-top: 18pt; }` +
+      `.toc-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8pt; font-family: "Inter", "Segoe UI", sans-serif; font-size: 11pt; }` +
+      `.toc-title-wrapper { display: flex; align-items: center; }` +
+      `.toc-number-badge { display: inline-block; background: #f1f5f9; color: #475569; border-radius: 50%; width: 18pt; height: 18pt; text-align: center; font-weight: bold; margin-right: 8pt; font-size: 9pt; line-height: 18pt; }` +
+      `.toc-item-dots { flex-grow: 1; border-bottom: 1.5pt dotted #cbd5e1; margin: 0 10px; }` +
+      `.toc-page-num { font-weight: bold; color: #475569; }` +
       `.page { margin-bottom: 40px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }` +
       `.page-footer { font-size: 9pt; color: #94a3b8; margin-top: 20px; text-align: right; }` +
       `br.page-break { page-break-before: always; }` +

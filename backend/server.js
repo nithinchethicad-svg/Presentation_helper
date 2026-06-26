@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { harvestMedia } = require('./utils/mediaHarvester');
 const { analyzeSlides } = require('./utils/slideAnalyzer');
-const { compileDocument } = require('./utils/htmlCompiler');
+const { compileDocument, compileSpeakerNotes } = require('./utils/htmlCompiler');
 const { AsyncLocalStorage } = require('async_hooks');
 
 // Load environment variables
@@ -2984,6 +2984,21 @@ const mockData = {
   }
 };
 
+const mockSpeakerNotes = [
+  {
+    title: "1. Strategic Project Vision & Objectives",
+    content: "<p>Good morning, team. Today we are walking through the Q3 deliverables and architecture transition. Before we dive into the numbers, let's align on the core vision.</p><ul><li>Welcome stakeholders and thank the engineering leads.</li><li>Acknowledge the massive effort behind the new local compilation pipeline.</li><li>Objective: Deliver absolute visual consistency without compromising speed.</li></ul>"
+  },
+  {
+    title: "2. Visual Quality Decoupling & Benchmarks",
+    content: "<p>Now, let's discuss the performance metrics. Traditional rendering pipelines were highly fragile. By moving to a structured JSON synthesis model, we have achieved critical gains.</p><ul><li>Highlight the 7.5x acceleration in E2E rendering time.</li><li>Explain that the LLM is now decoupled from HTML generation, removing layout hallucinations.</li><li>Point out the 96% reduction in API quota costs—this is key for scaling the tool.</li></ul>"
+  },
+  {
+    title: "3. Semantic Print Safety & PDF Packaging",
+    content: "<p>Finally, let's address offline print safety. A common issue with web layouts is page bleeding. Our new local pagination ensures perfect A4 margins.</p><ul><li>Point out the use of local font files (Inter and Lora) which removes external network calls.</li><li>Discuss the CSS print page-break rules preventing list item splits across sheets.</li><li>Open the floor for questions regarding the deployment timeline.</li></ul>"
+  }
+];
+
 // Serve the Visual Explorer HTML page
 app.get('/templates/explorer', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/explorer.html'));
@@ -2992,7 +3007,7 @@ app.get('/templates/explorer', (req, res) => {
 // Returns metadata for presets, themes, and palettes
 app.get('/api/templates/presets', (req, res) => {
   res.json({
-    presets: Object.keys(mockData),
+    presets: [...Object.keys(mockData), 'SpeakerNotesCoverToC', 'SpeakerNotesStandard'],
     themes: ['formal_professional', 'warm_encouraging', 'fun_energetic', 'reflective_thoughtful', 'educational_informative', 'motivational_inspiring'],
     palettes: ['corporate_navy', 'warm_forest', 'electric_purple', 'sunset_amber', 'elegant_charcoal', 'midnight_teal', 'crimson_gold', 'nordic_sage', 'cyberpunk_neon', 'vintage_cream']
   });
@@ -3001,9 +3016,34 @@ app.get('/api/templates/presets', (req, res) => {
 // Generates and returns compiled preview page inside iframe
 app.get('/api/templates/preview', (req, res) => {
   const { preset, theme, palette } = req.query;
-  const pageData = mockData[preset] || mockData.TwoColumnSplit;
-  const compiledHtml = compileDocument([pageData], theme, palette);
-  res.send(compiledHtml);
+  if (preset === 'SpeakerNotesCoverToC') {
+    const compiledHtml = compileSpeakerNotes(
+      mockSpeakerNotes, 
+      "Leveraging AI in Modern Enterprise Architecture", 
+      "Presentation Speaker Notes", 
+      { 
+        toc: [
+          "1. Strategic Project Vision & Objectives", 
+          "2. Visual Quality Decoupling & Benchmarks", 
+          "3. Semantic Print Safety & PDF Packaging"
+        ], 
+        excludeContent: true 
+      }
+    );
+    res.send(compiledHtml);
+  } else if (preset === 'SpeakerNotesStandard') {
+    const compiledHtml = compileSpeakerNotes(
+      mockSpeakerNotes, 
+      "Leveraging AI in Modern Enterprise Architecture", 
+      "Presentation Speaker Notes", 
+      { excludeCover: true }
+    );
+    res.send(compiledHtml);
+  } else {
+    const pageData = mockData[preset] || mockData.TwoColumnSplit;
+    const { html: compiledHtml } = compileDocument([pageData], theme, palette);
+    res.send(compiledHtml);
+  }
 });
 
 /**
@@ -3496,11 +3536,11 @@ JSON Output Schema:
     // 7. Compile the HTML document programmatically
     logEvent('info', `Executing Stage 2: Programmatically compiling layouts using Theme "${selectedTheme}" & Palette "${selectedPalette}"...`);
     
-    const compiledHtml = compileDocument(summaryJSON, selectedTheme, selectedPalette);
+    const { html: compiledHtml, json: reflowedJson } = compileDocument(summaryJSON, selectedTheme, selectedPalette);
     
-    logEvent('info', `E2E Generation completed successfully. Compiled ${summaryJSON.length} pages in under 10ms.`);
+    logEvent('info', `E2E Generation completed successfully. Compiled ${reflowedJson.length} pages in under 10ms.`);
 
-    res.json({ html: compiledHtml });
+    res.json({ html: compiledHtml, json: reflowedJson });
 
   } catch (error) {
     logEvent('error', `Generate failed: ${error.message}`);
@@ -3513,87 +3553,69 @@ JSON Output Schema:
  */
 app.post('/api/revise', async (req, res) => {
   try {
-    const { currentHtml, instructions, preferences } = req.body;
+    const { summaryJson, instructions, preferences } = req.body;
 
-    if (!currentHtml || !instructions) {
-      return res.status(400).json({ error: 'Missing currentHtml or revision instructions.' });
+    if (!summaryJson || !instructions) {
+      return res.status(400).json({ error: 'Missing summaryJson or revision instructions.' });
     }
 
     logEvent('info', `Received revision command: "${instructions}"`);
 
     // ==========================================
-    // REVISION STAGE 1: DIRECT REVISION
+    // REVISION STAGE 1: STRUCTURED JSON REVISION
     // ==========================================
-    logEvent('info', 'Executing Revision Stage 1: Applying user revisions...');
+    logEvent('info', 'Executing Revision Stage 1: Applying user revisions on structured JSON...');
 
     const systemInstruction =
-      "You are an expert web designer and editor. " +
-      "Your task is to take an existing self-contained HTML/CSS summary document and modify it according to the user's revision instructions. " +
-      "You must preserve the page-by-page A4 structure of the document (where each page is wrapped in a <div class=\"page\">...</div> container). " +
-      "Ensure that no elements inside the document have scrollbars or scrollable overflow (do NOT use overflow: scroll or overflow: auto on tables, code blocks, etc.). All content must be fully visible and wrap naturally. " +
-      "CRITICAL: Do NOT use :hover CSS pseudo-classes, transitions, animations, or cursor: pointer anywhere. The document must be fully print-safe with no interactive styles. " +
-      "CRITICAL: Do NOT use position: fixed or position: sticky. Avoid absolute positioning that could cause content to overlap. All content must be fully visible with nothing clipped or hidden. " +
-      "You must return ONLY the updated self-contained HTML page (with inline CSS in <style> blocks). " +
-      "Do NOT add markdown code fences (like ```html) and do NOT change the core structure of the notes unless requested. Keep the styling premium.";
+      "You are an expert content editor and structured data designer. Your task is to take an existing presentation structured JSON outline and modify its sections, headers, or bullet points according to the user's revision instructions. " +
+      "You must preserve the page-by-page structure and the strict component types (e.g. StandardTextBlock, TwoColumnBlock, MultiCardGrid, ProcessTimeline, DataTable, HeroCallout, MediaBlock). " +
+      "CRITICAL: Keep the output strictly in the exact same JSON schema as the input outline. Do NOT change the keys, and do NOT output any HTML formatting or raw CSS. " +
+      "CRITICAL (Anti-Drift): You must only modify the specific pages or sections explicitly targeted by the user's instructions. Keep all other pages, headers, and section content exactly identical. " +
+      "Return ONLY the final updated JSON payload. Do NOT wrap in markdown backticks.";
 
     const prompt = `
 User Revision Instruction: "${instructions}"
 
-Here is the current HTML/CSS document:
+Here is the current structured JSON outline of the presentation:
 ------------------
-${currentHtml}
+${JSON.stringify(summaryJson, null, 2)}
 ------------------
 
 Preferences Context (for reference):
 ${JSON.stringify(preferences || {})}
 
-Please update the HTML/CSS code to implement the user's instructions, ensuring the page-by-page A4 layout (.page wrappers) is maintained. Keep all content unless the user asked to remove it. Return ONLY the final revised HTML code.
+Please update this JSON outline to implement the user's instructions, ensuring the exact same JSON schema is maintained. Keep all other sections and pages identical unless requested to edit/remove them. Return ONLY the final revised JSON code.
 `;
 
     const rawAiResponse = await generateContentWithRotation(
       prompt,
       systemInstruction,
-      {},
+      { responseMimeType: "application/json" },
       SUBTASK_REVISION_ANALYSIS
     );
 
+    let revisedJson;
+    try {
+      revisedJson = cleanAndParseJson(rawAiResponse);
+    } catch (parseError) {
+      logEvent('error', `Failed to parse revised JSON. Raw text: "${rawAiResponse}"`, { error: parseError.message });
+      throw new Error(`Failed to parse structured revised JSON: ${parseError.message}`);
+    }
+
     // ==========================================
-    // REVISION STAGE 2: REVISION VALIDATION
+    // REVISION STAGE 2: PROGRAMMATIC REFLOW & COMPILATION
     // ==========================================
-    logEvent('info', 'Executing Revision Stage 2: Running HTML/CSS validation and linter...');
+    logEvent('info', 'Executing Revision Stage 2: Programmatically compiling and reflowing layout...');
 
-    const validatorSystemInstruction =
-      "You are a strict CSS/HTML QA engineer and code linter. " +
-      "Your task is to analyze the self-contained HTML/CSS code and fix any design or print-safety violations. " +
-      "You must return ONLY the corrected, clean self-contained HTML/CSS document. Do NOT wrap in markdown backticks.";
+    const writingTheme = preferences?.writingTheme || 'Formal & Professional';
+    const colorScheme = preferences?.colorScheme || 'Corporate Navy';
+    
+    const selectedTheme = themeMap[writingTheme] || 'formal_professional';
+    const selectedPalette = paletteMap[colorScheme] || 'corporate_navy';
 
-    const validatorPrompt = `
-Task: Inspect the generated HTML/CSS code below for any formatting, overflow, page-bleeding, or print-safety violations, and output a corrected, fully safe version.
+    const { html: compiledHtml, json: reflowedJson } = compileDocument(revisedJson, selectedTheme, selectedPalette);
 
---- HTML/CSS Code to Inspect ---
-${cleanHtmlResponse(rawAiResponse)}
---------------------------------
-
-Checklist of violations you MUST correct if present:
-1. FIXED HEIGHTS: Any container inside a page (like .card, .callout, .badge, .container, .sidebar, div) that has a fixed "height: Xpx" or "height: Xrem". You MUST convert it to "min-height: Xpx; height: auto" so the shape expands with text.
-2. TEXT OVERFLOW: Any heading, paragraph, list item, or span that does not have "word-break: break-word; overflow-wrap: break-word;". Ensure these are added to prevent text bleeding out of the A4 page.
-3. HOVER / TRANSITIONS: If you see any ":hover" pseudo-class, transition property, animation, cursor: pointer, transform-on-hover, or absolute fixed/sticky positions, you MUST remove them.
-4. ABSOLUTE POSITIONING OVERLAPS: If "position: absolute" is used, ensure it is only for decorative accents. If text containers are positioned absolutely, convert them to flex/grid document flow so they do not overlap.
-5. CONTAINER PADDING: Ensure shape containers with borders or background fills have at least 12px of padding so text never touches the container borders.
-6. A4 PAGE OVERFLOW: If a page container has a style that makes it grow beyond 297mm (such as height: auto or overflow: visible), ensure the page container has a strict A4 styling with overflow: hidden.
-
-Return ONLY the final corrected HTML/CSS code. Do NOT add markdown code fences (like \`\`\`html) or any conversational text.
-`;
-
-    let htmlValidated = await generateContentWithRotation(
-      validatorPrompt,
-      validatorSystemInstruction,
-      {},
-      SUBTASK_HTML_COMPILATION
-    );
-    const cleanHTML = stripPrintUnfriendlyStyles(cleanHtmlResponse(htmlValidated));
-
-    res.json({ html: cleanHTML });
+    res.json({ html: compiledHtml, json: reflowedJson });
 
   } catch (error) {
     logEvent('error', `Revision request failed: ${error.message}`);

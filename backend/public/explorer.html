@@ -248,9 +248,42 @@
       transition: all 0.2s;
     }
 
-    .btn-action:hover {
-      border-color: var(--text-main);
+    /* View Switcher Segmented Control */
+    .view-toggle-bar {
+      display: inline-flex;
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      border-radius: 12px;
+      gap: 4px;
+      margin: 8px auto 24px auto;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .toggle-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      outline: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-btn.active {
+      background-color: var(--accent);
+      color: white;
+    }
+
+    .toggle-btn:hover:not(.active) {
       color: var(--text-main);
+      background-color: rgba(255, 255, 255, 0.05);
     }
   </style>
 </head>
@@ -261,15 +294,15 @@
     <div class="branding">
       <div class="logo-badge">Virtual Matrix</div>
       <div class="title-group">
-        <h1>Takeaway Notes Template Explorer</h1>
-        <p>Preview 7 master A4 print-safe layouts across 6 Themes & 10 Palettes</p>
+        <h1>Template Explorer & Visual Matrix</h1>
+        <p>Preview print-safe layouts across Vibe Themes, Color Palettes, and Speaker Handouts</p>
       </div>
     </div>
 
     <!-- Active Selection Controls -->
     <div class="controls">
       
-      <div class="control-group">
+      <div class="control-group" id="theme-control-group">
         <label class="control-label" for="theme-select">Vibe Theme (Y-Axis)</label>
         <select id="theme-select" class="select-input">
           <option value="formal_professional">🏛️ Formal & Professional</option>
@@ -281,7 +314,7 @@
         </select>
       </div>
 
-      <div class="control-group">
+      <div class="control-group" id="palette-control-group">
         <label class="control-label" for="palette-select">Color Palette (X-Axis)</label>
         <select id="palette-select" class="select-input">
           <option value="corporate_navy">Corporate Navy</option>
@@ -324,13 +357,19 @@
 
   <!-- Main Grid Display -->
   <main class="explorer-main">
+    <!-- View Toggle Switch Bar -->
+    <div class="view-toggle-bar">
+      <button id="toggle-takeaway" class="toggle-btn active">🏛️ Takeaway Notes Layouts</button>
+      <button id="toggle-speaker" class="toggle-btn">📚 Speaker Notes Layouts</button>
+    </div>
+
     <div class="explorer-grid" id="explorer-grid">
       <!-- Generated programmatically in JS -->
     </div>
   </main>
 
   <script>
-    const PRESETS = [
+    const TAKEAWAY_PRESETS = [
       { id: 'CoverPage', title: 'Cover Title Page', file: 'cover' },
       { id: 'TwoColumnSplit', title: 'Two-Column Split Card', file: 'two_column' },
       { id: 'MultiCardGrid', title: '2x2 Info Matrix Grid', file: 'grid' },
@@ -340,17 +379,31 @@
       { id: 'MixedMedia', title: 'Floated Text-Image Wrap', file: 'media_wrapped' }
     ];
 
+    const SPEAKER_PRESETS = [
+      { id: 'SpeakerNotesCoverToC', title: 'Speaker Notes Cover & Table of Contents (ToC)', file: 'speaker_notes_toc' },
+      { id: 'SpeakerNotesStandard', title: 'Speaker Notes Standard Section', file: 'speaker_notes_standard' }
+    ];
+
+    let activePresets = TAKEAWAY_PRESETS;
+    let currentView = 'takeaway'; // 'takeaway' | 'speaker'
+
     const themeSelect = document.getElementById('theme-select');
     const paletteSelect = document.getElementById('palette-select');
     const zoomSelect = document.getElementById('zoom-select');
     const gridContainer = document.getElementById('explorer-grid');
     const btnPrintTest = document.getElementById('btn-print-test');
+    
+    const toggleTakeawayBtn = document.getElementById('toggle-takeaway');
+    const toggleSpeakerBtn = document.getElementById('toggle-speaker');
+    
+    const themeControlGroup = document.getElementById('theme-control-group');
+    const paletteControlGroup = document.getElementById('palette-control-group');
 
     // Build the grid of A4 layouts
     function buildGrid() {
       gridContainer.innerHTML = '';
       
-      PRESETS.forEach(preset => {
+      activePresets.forEach(preset => {
         const card = document.createElement('div');
         card.className = 'template-card';
         
@@ -362,7 +415,7 @@
           
           <div class="iframe-wrapper" id="wrapper-${preset.file}">
             <iframe 
-              id="iframe-${preset.file}" 
+               id="iframe-${preset.file}" 
               class="preview-iframe" 
               src=""
               title="${preset.title} Preview"
@@ -370,7 +423,7 @@
           </div>
           
           <div class="card-footer">
-            <span style="color: var(--text-muted);">A4 Sheet Preview</span>
+            <span style="color: var(--text-muted);">${currentView === 'speaker' ? 'Minimal Distraction-Free Layout' : 'A4 Sheet Preview'}</span>
             <button class="btn-action" onclick="openPreset('${preset.file}')">Open Fullscreen</button>
           </div>
         `;
@@ -387,7 +440,7 @@
       const theme = themeSelect.value;
       const palette = paletteSelect.value;
       
-      PRESETS.forEach(preset => {
+      activePresets.forEach(preset => {
         const iframe = document.getElementById(`iframe-${preset.file}`);
         if (iframe) {
           iframe.src = `/api/templates/preview?preset=${preset.id}&theme=${theme}&palette=${palette}`;
@@ -399,14 +452,14 @@
     function updateScales() {
       const scale = parseFloat(zoomSelect.value);
       
-      PRESETS.forEach(preset => {
+      activePresets.forEach(preset => {
         const wrapper = document.getElementById(`wrapper-${preset.file}`);
         const iframe = document.getElementById(`iframe-${preset.file}`);
         
         if (wrapper && iframe) {
           // Standard A4 width: 210mm (~794px at 96dpi), height: 297mm (~1123px)
           const a4Width = 793.7; // px
-          const a4Height = 1122.5; // px
+          const a4Height = 1122.5; // px (CoverToC and Standard sections are both exactly 1 page high)
           
           // Scale the wrapper box size accordingly
           wrapper.style.width = `${a4Width * scale}px`;
@@ -424,21 +477,49 @@
     window.openPreset = function(presetFile) {
       const theme = themeSelect.value;
       const palette = paletteSelect.value;
-      const url = `/api/templates/preview?preset=${PRESETS.find(p => p.file === presetFile).id}&theme=${theme}&palette=${palette}`;
+      const preset = activePresets.find(p => p.file === presetFile);
+      const url = `/api/templates/preview?preset=${preset.id}&theme=${theme}&palette=${palette}`;
       window.open(url, '_blank');
     };
 
     // Print event
     btnPrintTest.addEventListener('click', () => {
-      // Trigger browser print dialog for the entire grid or single page
-      // To test A4 prints, opening fullscreen first is recommended
       const activeTheme = themeSelect.value;
       const activePalette = paletteSelect.value;
-      const printWindow = window.open(`/api/templates/preview?preset=TwoColumnSplit&theme=${activeTheme}&palette=${activePalette}`, '_blank');
+      let printUrl = `/api/templates/preview?preset=TwoColumnSplit&theme=${activeTheme}&palette=${activePalette}`;
+      if (currentView === 'speaker') {
+        printUrl = `/api/templates/preview?preset=SpeakerNotesCoverToC`;
+      }
+      const printWindow = window.open(printUrl, '_blank');
       printWindow.addEventListener('load', () => {
         printWindow.print();
       }, true);
     });
+
+    // View switcher logic
+    function switchView(view) {
+      if (currentView === view) return;
+      currentView = view;
+      
+      if (view === 'takeaway') {
+        activePresets = TAKEAWAY_PRESETS;
+        toggleTakeawayBtn.classList.add('active');
+        toggleSpeakerBtn.classList.remove('active');
+        themeControlGroup.style.display = 'flex';
+        paletteControlGroup.style.display = 'flex';
+      } else {
+        activePresets = SPEAKER_PRESETS;
+        toggleSpeakerBtn.classList.add('active');
+        toggleTakeawayBtn.classList.remove('active');
+        themeControlGroup.style.display = 'none';
+        paletteControlGroup.style.display = 'none';
+      }
+      
+      buildGrid();
+    }
+
+    toggleTakeawayBtn.addEventListener('click', () => switchView('takeaway'));
+    toggleSpeakerBtn.addEventListener('click', () => switchView('speaker'));
 
     // Event Listeners
     themeSelect.addEventListener('change', updatePreviews);
