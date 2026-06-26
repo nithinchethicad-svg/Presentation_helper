@@ -134,6 +134,7 @@ const DevToolsScreen = ({ onBack }) => {
   const [selectedTheme, setSelectedTheme] = useState('formal_professional');
   const [selectedPalette, setSelectedPalette] = useState('corporate_navy');
   const [activePreviewPreset, setActivePreviewPreset] = useState(null);
+  const [explorerView, setExplorerView] = useState('takeaway'); // 'takeaway' | 'speaker'
 
   // Context Cache States
   const [caches, setCaches] = useState([]);
@@ -1757,27 +1758,77 @@ const DevToolsScreen = ({ onBack }) => {
               alignItems: 'center',
               flexWrap: 'wrap'
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--dt-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Vibe Theme</span>
-                <select
-                  value={selectedTheme}
-                  onChange={(e) => setSelectedTheme(e.target.value)}
-                  style={{ backgroundColor: 'var(--dt-bg)', border: '1px solid var(--dt-border)', color: 'var(--dt-text)', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', minWidth: '180px', outline: 'none' }}
+              {/* View Toggle Segmented Control */}
+              <div style={{
+                display: 'flex',
+                backgroundColor: 'var(--dt-bg)',
+                border: '1px solid var(--dt-border)',
+                padding: '4px',
+                borderRadius: '8px',
+                gap: '4px',
+                marginRight: '8px'
+              }}>
+                <button
+                  onClick={() => setExplorerView('takeaway')}
+                  style={{
+                    backgroundColor: explorerView === 'takeaway' ? 'var(--dt-accent-blue)' : 'transparent',
+                    color: explorerView === 'takeaway' ? '#fff' : 'var(--dt-text-muted)',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
                 >
-                  {themes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                </select>
+                  🏛️ Takeaway Notes
+                </button>
+                <button
+                  onClick={() => setExplorerView('speaker')}
+                  style={{
+                    backgroundColor: explorerView === 'speaker' ? 'var(--dt-accent-blue)' : 'transparent',
+                    color: explorerView === 'speaker' ? '#fff' : 'var(--dt-text-muted)',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  📚 Speaker Notes
+                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--dt-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Color Palette</span>
-                <select
-                  value={selectedPalette}
-                  onChange={(e) => setSelectedPalette(e.target.value)}
-                  style={{ backgroundColor: 'var(--dt-bg)', border: '1px solid var(--dt-border)', color: 'var(--dt-text)', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', minWidth: '180px', outline: 'none' }}
-                >
-                  {palettes.map(p => <option key={p} value={p}>{p.replace(/_/g, ' ')}</option>)}
-                </select>
-              </div>
+              {explorerView === 'takeaway' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--dt-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Vibe Theme</span>
+                    <select
+                      value={selectedTheme}
+                      onChange={(e) => setSelectedTheme(e.target.value)}
+                      style={{ backgroundColor: 'var(--dt-bg)', border: '1px solid var(--dt-border)', color: 'var(--dt-text)', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', minWidth: '180px', outline: 'none' }}
+                    >
+                      {themes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--dt-text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Color Palette</span>
+                    <select
+                      value={selectedPalette}
+                      onChange={(e) => setSelectedPalette(e.target.value)}
+                      style={{ backgroundColor: 'var(--dt-bg)', border: '1px solid var(--dt-border)', color: 'var(--dt-text)', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', minWidth: '180px', outline: 'none' }}
+                    >
+                      {palettes.map(p => <option key={p} value={p}>{p.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
                 <button
@@ -1809,9 +1860,13 @@ const DevToolsScreen = ({ onBack }) => {
               gap: '20px'
             }}>
               <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--dt-text)' }}>Printable Template Library</h3>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--dt-text)' }}>
+                  {explorerView === 'speaker' ? 'Speaker Notes Template Library' : 'Takeaway Notes Template Library'}
+                </h3>
                 <p style={{ fontSize: '12px', color: 'var(--dt-text-muted)', margin: '4px 0 0 0' }}>
-                  Select a template layout to preview it in full-page A4 mode and test print/PDF rendering. Previews automatically update when you switch Vibe Themes and Color Palettes.
+                  {explorerView === 'speaker' 
+                    ? 'Select a minimal, distraction-free Speaker Notes layout to preview talking points and Table of Contents.' 
+                    : 'Select a Takeaway Notes template layout to preview it in full-page A4 mode. Previews automatically update when you switch themes and palettes.'}
                 </p>
               </div>
 
@@ -1821,7 +1876,9 @@ const DevToolsScreen = ({ onBack }) => {
                 gap: '24px',
                 marginTop: '10px'
               }}>
-                {presets.map(preset => (
+                {presets
+                  .filter(preset => explorerView === 'speaker' ? preset.startsWith('SpeakerNotes') : !preset.startsWith('SpeakerNotes'))
+                  .map(preset => (
                   <div 
                     key={preset}
                     onClick={() => setActivePreviewPreset(preset)}
