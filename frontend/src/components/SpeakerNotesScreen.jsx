@@ -94,6 +94,13 @@ const SpeakerNotesScreen = ({
               box-sizing: border-box !important;
             }
 
+            /* Content container constraint to prevent footer bleeding */
+            .section-content-container {
+              max-height: 230mm !important;
+              overflow: hidden !important;
+              box-sizing: border-box !important;
+            }
+
             @media (max-width: 840px) {
               .page {
                 width: 90vw !important;
@@ -104,29 +111,40 @@ const SpeakerNotesScreen = ({
 
             /* Typography Hierarchy */
             .title {
-              font-size: 30px !important;
+              font-size: 22pt !important;
               font-weight: 800 !important;
               color: #1e3a8a !important;
-              line-height: 1.25 !important;
+              line-height: 1.3 !important;
+              margin-top: 40px !important;
               margin-bottom: 8px !important;
+              text-align: center !important;
             }
 
             .subtitle {
-              font-size: 18px !important;
+              font-size: 11pt !important;
               font-weight: 500 !important;
               color: #64748b !important;
               margin-top: 0 !important;
-              margin-bottom: 24px !important;
+              margin-bottom: 40px !important;
+              text-align: center !important;
             }
 
             .section-title {
-              font-size: 22px !important;
+              font-size: 14pt !important;
               font-weight: 700 !important;
               color: #0f766e !important;
               border-bottom: 2px solid #cbd5e1 !important;
-              padding-bottom: 6px !important;
+              padding-bottom: 8px !important;
               margin-top: 0 !important;
               margin-bottom: 20px !important;
+            }
+
+            .speaker-section-title {
+              font-size: 13pt !important;
+              font-weight: 700 !important;
+              color: #0f766e !important;
+              margin-top: 0 !important;
+              margin-bottom: 12px !important;
             }
 
             h2, h3, h4 {
@@ -136,16 +154,16 @@ const SpeakerNotesScreen = ({
               margin-bottom: 10px !important;
             }
 
-            h2 { font-size: 18px !important; }
-            h3 { font-size: 15px !important; }
+            h2 { font-size: 13pt !important; }
+            h3 { font-size: 11pt !important; }
 
             p, li, td {
-              font-family: 'Georgia', serif !important;
-              font-size: 11.5pt !important;
-              line-height: 1.6 !important;
+              font-family: 'Lora', 'Georgia', serif !important;
+              font-size: 11pt !important;
+              line-height: 1.5 !important;
               color: #334155 !important;
               margin-top: 0 !important;
-              margin-bottom: 12px !important;
+              margin-bottom: 10px !important;
             }
 
             ul, ol {
@@ -1075,14 +1093,14 @@ const SpeakerNotesScreen = ({
       `xmlns='http://www.w3.org/TR/REC-html40'>` +
       `<head><title>${topic || 'Speaker Notes'}</title>` +
       `<style>` +
-      `body { font-family: "Lora", "Georgia", "Times New Roman", serif; font-size: 11.5pt; line-height: 1.6; padding: 20px; color: #334155; }` +
+      `body { font-family: "Lora", "Georgia", "Times New Roman", serif; font-size: 11pt; line-height: 1.5; padding: 20px; color: #334155; }` +
       `h1, h2, h3, h4, .speaker-section-title { font-family: "Inter", "Segoe UI", "Arial", sans-serif; font-weight: bold; color: #1e293b; }` +
-      `h1 { font-size: 22pt; color: #1e3a8a; margin-top: 18pt; margin-bottom: 8pt; }` +
-      `h2, .speaker-section-title { font-size: 16pt; color: #0f766e; margin-top: 16pt; margin-bottom: 8pt; }` +
-      `h3 { font-size: 13pt; color: #1e293b; margin-top: 12pt; margin-bottom: 6pt; }` +
-      `p { margin-top: 0; margin-bottom: 12pt; color: #334155; }` +
-      `ul, ol { margin-top: 0; margin-bottom: 12pt; padding-left: 20px; }` +
-      `li { margin-bottom: 6pt; color: #334155; }` +
+      `h1 { font-size: 20pt; color: #1e3a8a; margin-top: 18pt; margin-bottom: 8pt; }` +
+      `h2, .speaker-section-title { font-size: 13pt; color: #0f766e; margin-top: 14pt; margin-bottom: 6pt; }` +
+      `h3 { font-size: 11pt; color: #1e293b; margin-top: 10pt; margin-bottom: 4pt; }` +
+      `p { margin-top: 0; margin-bottom: 10pt; color: #334155; }` +
+      `ul, ol { margin-top: 0; margin-bottom: 10pt; padding-left: 20px; }` +
+      `li { margin-bottom: 5pt; color: #334155; }` +
       `.toc-list { display: block; margin-top: 18pt; }` +
       `.toc-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8pt; font-family: "Inter", "Segoe UI", sans-serif; font-size: 11pt; }` +
       `.toc-title-wrapper { display: flex; align-items: center; }` +

@@ -81,6 +81,17 @@ body {
   align-items: flex-end;
 }
 
+/* Page content area constrained to prevent footer bleeding */
+.page-content {
+  max-height: 230mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-grow: 1;
+  box-sizing: border-box;
+}
+
 .page-title {
   font-family: var(--font-heading);
   font-size: 24px;
