@@ -76,11 +76,19 @@ const UploadScreen = ({
               ← Home
             </button>
           )}
-          <img 
-            src="/takeaway_notes_generator_logo.png" 
-            alt="AI Takeaway Notes Generator" 
-            style={{ height: '52px', objectFit: 'contain' }} 
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '0.5rem' }}>
+            <img 
+              src="/ai_slidekick_logo.png?v=3" 
+              alt="AI Slidekick" 
+              style={{ height: '32px', width: 'auto', objectFit: 'contain' }} 
+            />
+            <div style={{ borderLeft: '1px solid var(--border-light)', height: '24px', margin: '0 8px' }} />
+            <img 
+              src="/takeaway_notes_generator_logo.png" 
+              alt="AI Takeaway Notes Generator" 
+              style={{ height: '32px', objectFit: 'contain' }} 
+            />
+          </div>
         </div>
       </header>
 

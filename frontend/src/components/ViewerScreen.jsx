@@ -12,6 +12,20 @@ const ViewerScreen = ({
   const iframeRef = useRef(null);
   const [revisionText, setRevisionText] = useState('');
   const [zoom, setZoom] = useState(100);
+  const [showLagMessage, setShowLagMessage] = useState(false);
+
+  // Reconnection lag timer for AI context memory
+  useEffect(() => {
+    let timer;
+    if (isRevising) {
+      timer = setTimeout(() => {
+        setShowLagMessage(true);
+      }, 2000);
+    } else {
+      setShowLagMessage(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isRevising]);
 
   // Inject HTML content into the iframe when it changes
   useEffect(() => {
@@ -298,11 +312,17 @@ const ViewerScreen = ({
         {/* Top: Branding & Title Block */}
         <div className="viewer-left-top">
           <header className="app-header" style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={onBack}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={onBack}>
+              <img 
+                src="/ai_slidekick_logo.png?v=3" 
+                alt="AI Slidekick" 
+                style={{ height: '32px', width: 'auto', objectFit: 'contain' }} 
+              />
+              <div style={{ borderLeft: '1px solid var(--border-light)', height: '24px', margin: '0 8px' }} />
               <img 
                 src="/takeaway_notes_generator_logo.png" 
                 alt="AI Takeaway Notes Generator" 
-                style={{ height: '52px', objectFit: 'contain' }} 
+                style={{ height: '32px', objectFit: 'contain' }} 
               />
             </div>
           </header>
@@ -443,6 +463,28 @@ const ViewerScreen = ({
                 <div className="spinner"></div>
                 <p style={{ fontWeight: 600 }}>Applying AI Revisions...</p>
                 <p style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.25rem' }}>This will take a few seconds.</p>
+                
+                {showLagMessage && (
+                  <div style={{
+                    marginTop: '20px',
+                    backgroundColor: 'rgba(9, 13, 22, 0.75)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '12px 18px',
+                    borderRadius: '10px',
+                    maxWidth: '85%',
+                    textAlign: 'center',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                    animation: 'fadeIn 0.3s ease-out'
+                  }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#60a5fa', display: 'block' }}>
+                      🔄 Reconnecting to AI session memory...
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '4px', display: 'block' }}>
+                      (This first request takes a few seconds, subsequent edits will be instant.)
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             

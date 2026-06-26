@@ -191,11 +191,17 @@ const QuestionnaireScreen = ({ preferences, setPreferences, onBack, onGenerate }
     <div className="animate-fade-in">
       {/* Header Bar */}
       <header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={onBack}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={onBack}>
+          <img 
+            src="/ai_slidekick_logo.png?v=3" 
+            alt="AI Slidekick" 
+            style={{ height: '32px', width: 'auto', objectFit: 'contain' }} 
+          />
+          <div style={{ borderLeft: '1px solid var(--border-light)', height: '24px', margin: '0 8px' }} />
           <img 
             src="/takeaway_notes_generator_logo.png" 
             alt="AI Takeaway Notes Generator" 
-            style={{ height: '52px', objectFit: 'contain' }} 
+            style={{ height: '32px', objectFit: 'contain' }} 
           />
         </div>
       </header>

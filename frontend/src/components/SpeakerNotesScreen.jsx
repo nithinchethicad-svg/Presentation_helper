@@ -601,7 +601,8 @@ const SpeakerNotesScreen = ({
       const response = await fetch(`${BACKEND_URL}/api/chat-speaker-notes`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionStorage.getItem('sessionId') || 'unknown'
         },
         body: JSON.stringify({
           messages: activeMessages,
@@ -766,7 +767,8 @@ const SpeakerNotesScreen = ({
           const response = await fetch(`${BACKEND_URL}/api/summarize-chats`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'X-Session-ID': sessionStorage.getItem('sessionId') || 'unknown'
             },
             body: JSON.stringify({ messages: messagesToSummarize })
           });
@@ -1134,11 +1136,17 @@ const SpeakerNotesScreen = ({
           >
             ← Home
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img 
+              src="/ai_slidekick_logo.png?v=3" 
+              alt="AI Slidekick" 
+              style={{ height: '32px', width: 'auto', objectFit: 'contain' }} 
+            />
+            <div style={{ borderLeft: '1px solid var(--border-light)', height: '24px', margin: '0 8px' }} />
             <img 
               src="/speaker_notes_generator_logo.png" 
               alt="AI Speaker Notes Generator" 
-              style={{ height: '52px', objectFit: 'contain' }} 
+              style={{ height: '32px', objectFit: 'contain' }} 
             />
             {topic && (
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, maxWidth: '280px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-light)', paddingLeft: '0.75rem' }}>

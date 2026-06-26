@@ -5,6 +5,7 @@ import SlidesComingSoon from './components/SlidesComingSoon';
 import UploadScreen from './components/UploadScreen';
 import QuestionnaireScreen from './components/QuestionnaireScreen';
 import ViewerScreen from './components/ViewerScreen';
+import DevToolsScreen from './components/DevToolsScreen';
 
 const DEFAULT_PREFERENCES = {
   colorScheme: 'Cool Tech (Indigo & Slate)',
@@ -49,6 +50,18 @@ function App() {
   const [loadingStage, setLoadingStage] = useState(null);
   const [isRevising, setIsRevising] = useState(false);
   const [error, setError] = useState(null); // { title: '', desc: '' }
+
+  // Ensure session ID is initialized in sessionStorage
+  useEffect(() => {
+    if (!sessionStorage.getItem('sessionId')) {
+      const now = new Date();
+      const dateStr = now.toISOString().substring(0, 10).replace(/-/g, '');
+      const timeStr = now.toISOString().substring(11, 19).replace(/:/g, '');
+      const randomStr = Math.random().toString(36).substring(2, 14).padEnd(12, '0');
+      const randomId = `anon_${dateStr}_${timeStr}_${randomStr}`;
+      sessionStorage.setItem('sessionId', randomId);
+    }
+  }, []);
 
   // Sync view state with URL hash (enables native back/forward buttons)
   useEffect(() => {
@@ -167,6 +180,9 @@ function App() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/generate`, {
         method: 'POST',
+        headers: {
+          'X-Session-ID': sessionStorage.getItem('sessionId') || 'unknown'
+        },
         body: formData
       });
 
@@ -208,7 +224,9 @@ function App() {
       const response = await fetch(`${BACKEND_URL}/api/revise`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionStorage.getItem('sessionId') || 'unknown',
+          'X-Latency-Budget': 'high_speed'
         },
         body: JSON.stringify({
           currentHtml: generatedHtml,
@@ -312,6 +330,10 @@ function App() {
             isLoading={isLoading}
             loadingStage={loadingStage}
           />
+        )}
+
+        {view === 'devtools' && (
+          <DevToolsScreen onBack={handleReset} />
         )}
       </>
     </div>

@@ -1,0 +1,31 @@
+# Dependencies
+**/node_modules
+node_modules/
+
+# Local database files (Option B / Usage logs)
+backend/disabled_keys.json
+backend/usage_history.json
+backend/monthly_aggregates.json
+disabled_keys.json
+usage_history.json
+monthly_aggregates.json
+
+# Production builds
+**/dist
+dist/
+
+# Git & Agent logs
+.git
+.gitignore
+.agents
+.gemini
+AGENTS.md
+task.md
+implementation_plan.md
+walkthrough.md
+cost_analysis_brainstorm.md
+README_CLOUDRUN.md
+
+# OS files
+.DS_Store
+Thumbs.db
