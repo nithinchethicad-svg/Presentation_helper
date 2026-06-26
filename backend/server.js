@@ -2981,6 +2981,77 @@ const mockData = {
         highlightText: 'Each of the six Vibe Themes is engineered with distinct borders, shadows, and spacing.'
       }
     ]
+  },
+  TwoColumnAndGrid: {
+    pageTitle: 'Compiler Comparisons & Architecture Pillars',
+    sections: [
+      {
+        sectionType: 'TwoColumnBlock',
+        leftColumnHeader: 'Legacy Parallel Rendering',
+        leftColumnBullets: [
+          'Parallel LLM calls (12+ calls per document)',
+          'High risk of rate limits and quota exhaust',
+          'Frequent visual overflow and layout breakage'
+        ],
+        rightColumnHeader: 'Matrix Compilers',
+        rightColumnBullets: [
+          'Single structured JSON summary call',
+          'Consumes negligible quota, fully free-tier safe',
+          'Absolute layout reliability via CSS tokens'
+        ]
+      },
+      {
+        sectionType: 'MultiCardGrid',
+        cards: [
+          { header: 'CSS Token Isolation', content: 'Zero hardcoded style values. Separation of concerns.' },
+          { header: 'Page Budget Allocator', content: 'Complexity scoring splits slide decks beforehand.' },
+          { header: 'Single Call Pipeline', content: 'AI acts purely as a structured synthesizer.' },
+          { header: 'Offline Audit Preview', content: 'Local validation runs in under 1ms at zero cost.' }
+        ]
+      }
+    ]
+  },
+  GridAndTimeline: {
+    pageTitle: 'System Pillars & Step-by-Step Compilation',
+    sections: [
+      {
+        sectionType: 'MultiCardGrid',
+        cards: [
+          { header: 'Pillar 1: Isolation', content: 'CSS variable tokens guarantee global layout consistency.' },
+          { header: 'Pillar 2: Budgets', content: 'Predictive weight scores prevent text/media page overflows.' },
+          { header: 'Pillar 3: Synthesis', content: 'Gemini summarizes content into schema-conforming JSON.' },
+          { header: 'Pillar 4: Speed', content: 'HTML compilation and PDF generation completes in 3.8s.' }
+        ]
+      },
+      {
+        sectionType: 'ProcessTimeline',
+        steps: [
+          { stepNumber: '01', header: 'PowerPoint Parsing', description: 'Decompress slide deck and harvest headers, tables, and media.' },
+          { stepNumber: '02', header: 'Reflow Engine Execution', description: 'Paging reflow allocates sections into page budgets.' },
+          { stepNumber: '03', header: 'Visual Theme Merging', description: 'Infect styles with selected vibe themes and color palettes.' }
+        ]
+      }
+    ]
+  },
+  TableAndCallout: {
+    pageTitle: 'Performance Benchmarks & Compilation Philosophy',
+    sections: [
+      {
+        sectionType: 'DataTable',
+        headers: ['Metric', 'Parallel AI (Old)', 'Matrix Compiler (New)', 'Gain'],
+        rows: [
+          ['E2E Render', '28.5 Seconds', '3.8 Seconds', '7.5x Acceleration'],
+          ['API Quota Cost', '₹75.40 / doc', '₹2.80 / doc', '96% Cost Savings'],
+          ['Overflow Rate', '14.2% of pages', '0.0% (Print-Safe)', 'Zero Overflows']
+        ]
+      },
+      {
+        sectionType: 'HeroCallout',
+        quoteText: 'Decoupling content synthesis from layout rendering allows documents to compile instantly with absolute visual perfection.',
+        author: 'UX Engineering Team',
+        highlightText: 'Offline templates ensure print-safe margins and bulletproof pagination without network lag.'
+      }
+    ]
   }
 };
 

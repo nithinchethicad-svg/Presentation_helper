@@ -154,11 +154,119 @@ function calculateSectionWeight(section) {
  * @param {Array} pages - Split pages array.
  * @returns {Array} Reflowed and neatly partitioned pages array.
  */
+/**
+ * Dynamic Component Splitting Helper.
+ * Checks if a section can be split mathematically based on the available weight budget.
+ * Enforces a strict minimum of 2 items on both sides of a split to prevent widow/orphan elements.
+ * Returns [SectionA, SectionB] if split is successful, or null if it cannot be split.
+ */
+function trySplitSection(section, availableWeight) {
+  const sectionType = section.sectionType || section.pageType || "";
+  const minItems = 2; // Widow/Orphan Protection: Min 2 items on both sides
+
+  // 1. Standard Text Block (List of bullets)
+  if (sectionType === 'StandardTextBlock' || sectionType === 'StandardText') {
+    const bullets = section.bullets || [];
+    if (bullets.length < minItems * 2) return null; // Need at least 4 bullets to split (2 on each side)
+
+    // Formula: Weight = 15% base + count * 5%
+    // count * 5 <= availableWeight - 15
+    // count <= (availableWeight - 15) / 5
+    const maxBullets = Math.floor((availableWeight - 15) / 5);
+    if (maxBullets >= minItems && (bullets.length - maxBullets) >= minItems) {
+      return [
+        {
+          ...section,
+          bullets: bullets.slice(0, maxBullets)
+        },
+        {
+          ...section,
+          header: section.header ? `${section.header} (Continued)` : 'Key Focus (Continued)',
+          bullets: bullets.slice(maxBullets)
+        }
+      ];
+    }
+  }
+
+  // 2. Data Table (Rows)
+  if (sectionType === 'DataTable') {
+    const rows = section.rows || [];
+    if (rows.length < minItems * 2) return null; // Need at least 4 rows to split
+
+    // Formula: Weight = 20% base + count * 10%
+    const maxRows = Math.floor((availableWeight - 20) / 10);
+    if (maxRows >= minItems && (rows.length - maxRows) >= minItems) {
+      return [
+        {
+          ...section,
+          rows: rows.slice(0, maxRows)
+        },
+        {
+          ...section,
+          header: section.header ? `${section.header} (Continued)` : 'Data Table (Continued)',
+          rows: rows.slice(maxRows)
+        }
+      ];
+    }
+  }
+
+  // 3. Process Timeline (Steps)
+  if (sectionType === 'ProcessTimeline') {
+    const steps = section.steps || [];
+    if (steps.length < minItems * 2) return null; // Need at least 4 steps to split
+
+    // Formula: Weight = 20% base + count * 10%
+    const maxSteps = Math.floor((availableWeight - 20) / 10);
+    if (maxSteps >= minItems && (steps.length - maxSteps) >= minItems) {
+      return [
+        {
+          ...section,
+          steps: steps.slice(0, maxSteps)
+        },
+        {
+          ...section,
+          header: section.header ? `${section.header} (Continued)` : 'Process Timeline (Continued)',
+          steps: steps.slice(maxSteps)
+        }
+      ];
+    }
+  }
+
+  // 4. Multi Card Grid (Cards)
+  if (sectionType === 'MultiCardGrid') {
+    const cards = section.cards || [];
+    if (cards.length < minItems * 2) return null; // Need at least 4 cards to split
+
+    // Formula: Weight = 15% base + count * 10%
+    const maxCards = Math.floor((availableWeight - 15) / 10);
+    if (maxCards >= minItems && (cards.length - maxCards) >= minItems) {
+      return [
+        {
+          ...section,
+          cards: cards.slice(0, maxCards)
+        },
+        {
+          ...section,
+          header: section.header ? `${section.header} (Continued)` : 'Key Points (Continued)',
+          cards: cards.slice(maxCards)
+        }
+      ];
+    }
+  }
+  return null; // Cannot split
+}
+
+/**
+ * Paging Reflow Algorithm (Fine-Grained Dynamic Component Splitting & Queue-Based Cascade).
+ * Flattens all content sections and re-partitions them into A4 pages ensuring no page exceeds 100% weight,
+ * dynamically splitting components at page boundaries to maximize page utilization.
+ * @param {Array} pages - Split pages array.
+ * @returns {Array} Reflowed and neatly partitioned pages array.
+ */
 function reflowPages(pages) {
   const reflowed = [];
   const normalSections = [];
   
-  // Track the first normal page's details to reuse title/header keys
   let basePageTitle = "Key Highlights";
 
   for (const page of pages) {
@@ -166,13 +274,11 @@ function reflowPages(pages) {
     const hasCover = sections.some(s => s.sectionType === 'CoverBlock' || s.sectionType === 'CoverPage');
 
     if (hasCover) {
-      // Cover pages are always kept intact on Page 1 as standalone sheets
       reflowed.push(page);
     } else {
       if (page.pageTitle || page.title) {
         basePageTitle = page.pageTitle || page.title;
       }
-      // Collect all normal sections into a single flat list
       normalSections.push(...sections);
     }
   }
@@ -181,27 +287,63 @@ function reflowPages(pages) {
     return reflowed;
   }
 
-  // Partition the flat section list into A4 pages (max weight 100% per page)
   let currentPageSections = [];
   let currentPageWeight = 0;
   let pageIndex = reflowed.length + 1;
+  const queue = [...normalSections];
 
-  for (const section of normalSections) {
+  // Infinite Loop Guard
+  let loopGuard = 0;
+  const maxLoops = queue.length * 10;
+
+  while (queue.length > 0 && loopGuard < maxLoops) {
+    loopGuard++;
+    const section = queue.shift();
     const weight = calculateSectionWeight(section);
 
-    // If adding this section exceeds 100% weight, push the current page and start a new one
-    if (currentPageSections.length > 0 && currentPageWeight + weight > 100) {
-      reflowed.push({
-        pageTitle: currentPageSections[0]?.header || `${basePageTitle} (Page ${pageIndex})`,
-        sections: currentPageSections
-      });
-      pageIndex++;
-      currentPageSections = [];
-      currentPageWeight = 0;
-    }
+    if (currentPageWeight + weight <= 100) {
+      // 1. Section fits completely on current page
+      currentPageSections.push(section);
+      currentPageWeight += weight;
+    } else {
+      // 2. Exceeds capacity: check if we can split it to fill the remaining space
+      const availableWeight = 100 - currentPageWeight;
+      const splitResult = trySplitSection(section, availableWeight);
 
-    currentPageSections.push(section);
-    currentPageWeight += weight;
+      if (splitResult) {
+        const [sectionA, sectionB] = splitResult;
+        
+        // Part A fits exactly in the remaining space of the current page
+        currentPageSections.push(sectionA);
+        
+        // Push the full page
+        reflowed.push({
+          pageTitle: currentPageSections[0]?.header || `${basePageTitle} (Page ${pageIndex})`,
+          sections: currentPageSections
+        });
+        pageIndex++;
+        
+        // Reset for the next page
+        currentPageSections = [];
+        currentPageWeight = 0;
+        
+        // Put Part B at the front of the queue to flow onto the next page
+        queue.unshift(sectionB);
+      } else {
+        // 3. Cannot be split (or too small space): push the entire section to the next page
+        if (currentPageSections.length > 0) {
+          reflowed.push({
+            pageTitle: currentPageSections[0]?.header || `${basePageTitle} (Page ${pageIndex})`,
+            sections: currentPageSections
+          });
+          pageIndex++;
+          currentPageSections = [];
+          currentPageWeight = 0;
+        }
+        
+        queue.unshift(section);
+      }
+    }
   }
 
   // Push the final remaining page

@@ -7,9 +7,11 @@
     },
     "key_free_2": {
       "gemini-3.1-pro-preview": "manual_off",
+      "gemini-2.5-flash": "quota_depleted",
       "gemini-2.5-pro": "manual_off"
     },
     "key_free_3": {
+      "gemini-3.5-flash": "quota_depleted",
       "gemini-3.1-pro-preview": "manual_off",
       "gemini-2.5-pro": "manual_off"
     },
@@ -19,14 +21,18 @@
     },
     "key_free_5": {
       "gemini-3.1-pro-preview": "manual_off",
+      "gemini-2.5-flash": "quota_depleted",
       "gemini-2.5-pro": "manual_off"
     },
     "key_free_6": {
+      "gemini-3.5-flash": "quota_depleted",
       "gemini-3.1-pro-preview": "manual_off",
       "gemini-2.5-pro": "manual_off"
     },
     "key_free_7": {
+      "gemini-3.5-flash": "quota_depleted",
       "gemini-3.1-pro-preview": "manual_off",
+      "gemini-2.5-flash": "quota_depleted",
       "gemini-2.5-pro": "manual_off"
     }
   },
