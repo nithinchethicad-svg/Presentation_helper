@@ -34,3 +34,9 @@ Thumbs.db
 # Extracted media from uploads
 backend/public/extracted_media/
 backend/public/extracted_media_test/
+
+# Local persistent data and logs (stored in shared folder, ignored in project)
+**/disabled_keys.json
+**/usage_history.json
+**/monthly_aggregates.json
+**/system_logs.jsonl

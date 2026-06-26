@@ -6,6 +6,7 @@ const officeParser = require('officeparser');
 const { GoogleGenAI } = require('@google/genai');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { harvestMedia } = require('./utils/mediaHarvester');
 const { analyzeSlides } = require('./utils/slideAnalyzer');
 const { compileDocument, compileSpeakerNotes } = require('./utils/htmlCompiler');
@@ -13,6 +14,16 @@ const { AsyncLocalStorage } = require('async_hooks');
 
 // Load environment variables
 dotenv.config();
+
+// Determine shared local data folder for persistent logs and cost tracking
+const SHARED_DATA_DIR = process.env.AI_SLIDEKICK_DATA_DIR || path.join(os.homedir(), '.ai_slidekick');
+
+// Ensure shared directory exists
+try {
+  fs.mkdirSync(SHARED_DATA_DIR, { recursive: true });
+} catch (e) {
+  console.error('Failed to create shared data directory:', e.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,7 +90,7 @@ const upload = multer({
 });
 
 // Disabled keys local persistent file path (Option B)
-const disabledKeysPath = path.join(__dirname, 'disabled_keys.json');
+const disabledKeysPath = path.join(SHARED_DATA_DIR, 'disabled_keys.json');
 
 function loadDisabledKeys() {
   try {
@@ -132,6 +143,55 @@ function saveDisabledKeys(data) {
   }
 }
 
+function syncKeyPoolWithDisk() {
+  const persistedDisabled = loadDisabledKeys();
+  const disabledKeys = persistedDisabled.disabledKeys || [];
+  const disabledModels = persistedDisabled.disabledModels || {};
+  const persistedManualKeyStates = persistedDisabled.manualKeyStates || {};
+  const persistedManualModelStates = persistedDisabled.manualModelStates || {};
+
+  apiKeysPool.forEach(k => {
+    // If these helper objects don't exist yet, initialize them
+    if (!k.disabledAt) k.disabledAt = {};
+    if (!k.lastRecoveryCheckAt) k.lastRecoveryCheckAt = {};
+    if (!k.recoveryAttempts) k.recoveryAttempts = {};
+
+    k.manualKeyState = persistedManualKeyStates[k.id] || null; // null | 'on' | 'off'
+
+    // Update enabled state based on manual override and auto-disable list
+    const isManualDisabled = k.manualKeyState === 'off';
+    const isAutoDisabled = disabledKeys.includes(k.id);
+    k.enabled = !isManualDisabled && !isAutoDisabled;
+
+    if (!k.enabled) {
+      k.status = k.manualKeyState === 'off' ? 'Manually Disabled' : 'Disabled';
+    } else if (k.status === 'Disabled' || k.status === 'Manually Disabled') {
+      k.status = 'Healthy';
+    }
+
+    // Sync model states
+    const keyDisabledModels = disabledModels[k.id] || {};
+    const keyManualModelStates = persistedManualModelStates[k.id] || {};
+
+    // Reset models to active, then overlay persisted states
+    for (const m in k.modelEnabled) {
+      k.modelEnabled[m] = 'active'; // Reset default
+      
+      if (keyDisabledModels[m]) {
+        k.modelEnabled[m] = keyDisabledModels[m];
+        if (keyDisabledModels[m] === 'quota_depleted' && !k.disabledAt[m]) {
+          k.disabledAt[m] = Date.now();
+        }
+      }
+      
+      // Restore manual_off state from manualModelStates
+      if (keyManualModelStates[m] === 'manual_off') {
+        k.modelEnabled[m] = 'manual_off';
+      }
+    }
+  });
+}
+
 function saveDisabledKeysAndModels() {
   const disabledKeys = apiKeysPool.filter(k => !k.enabled).map(k => k.id);
   const disabledModels = {};
@@ -169,12 +229,14 @@ function saveDisabledKeysAndModels() {
 }
 
 // Cost & Usage tracking file paths and states
-const USAGE_HISTORY_FILE = path.join(__dirname, 'usage_history.json');
-const MONTHLY_AGGREGATES_FILE = path.join(__dirname, 'monthly_aggregates.json');
+const USAGE_HISTORY_FILE = path.join(SHARED_DATA_DIR, 'usage_history.json');
+const MONTHLY_AGGREGATES_FILE = path.join(SHARED_DATA_DIR, 'monthly_aggregates.json');
+const SYSTEM_LOGS_FILE = path.join(SHARED_DATA_DIR, 'system_logs.jsonl');
 
 let usageHistory = [];
 let monthlyAggregates = {};
 let pricingRates = {};
+let logCountSincePrune = 0;
 
 // Load pricing configurations
 try {
@@ -257,6 +319,7 @@ function saveMonthlyAggregatesFile() {
 }
 
 function recordUsage(sessionId, subTask, endpoint, modelName, inputTokens, outputTokens, cachedTokensRead, latencyMs) {
+  loadUsageData(); // Synchronize with updates from other parallel processes
   const modelKey = modelName.toLowerCase();
   let modelPricing = pricingRates[modelKey];
   if (!modelPricing) {
@@ -461,40 +524,13 @@ for (let i = 1; i <= 7; i++) {
   }
 }
 
-// Apply persistent disabled keys list (Option B)
-const persistedDisabled = loadDisabledKeys();
-const disabledKeys = persistedDisabled.disabledKeys || [];
-const disabledModels = persistedDisabled.disabledModels || {};
-const persistedManualKeyStates = persistedDisabled.manualKeyStates || {};
-const persistedManualModelStates = persistedDisabled.manualModelStates || {};
-
+// Apply persistent disabled keys list & overrides from disk
 apiKeysPool.forEach(k => {
   k.disabledAt = {};
   k.lastRecoveryCheckAt = {};
   k.recoveryAttempts = {};
-  // NEW: Initialize manual override state from persisted storage
-  k.manualKeyState = persistedManualKeyStates[k.id] || null; // null | 'on' | 'off'
-
-  if (disabledKeys.includes(k.id)) {
-    k.enabled = false;
-    // Distinguish manually disabled vs auto-disabled (auth error) on load
-    k.status = k.manualKeyState === 'off' ? 'Manually Disabled' : 'Disabled';
-  }
-  if (disabledModels[k.id]) {
-    for (const m in disabledModels[k.id]) {
-      if (k.modelEnabled[m] !== undefined) {
-        k.modelEnabled[m] = disabledModels[k.id][m];
-        if (disabledModels[k.id][m] === 'quota_depleted') {
-          k.disabledAt[m] = Date.now();
-        }
-        // Restore manual_off state from dedicated manualModelStates store
-        if (persistedManualModelStates[k.id] && persistedManualModelStates[k.id][m] === 'manual_off') {
-          k.modelEnabled[m] = 'manual_off';
-        }
-      }
-    }
-  }
 });
+syncKeyPoolWithDisk();
 
 // Active keys helper
 function getActiveKeys() {
@@ -754,8 +790,52 @@ async function checkAllKeysQuotas() {
 // Get the model name from environment or default to gemini-3.5-flash.
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
-// In-memory system logs store for debugging
-const systemLogs = [];
+// Helper functions for disk-persistent append-only system logs
+function getSystemLogsFromDisk() {
+  try {
+    if (fs.existsSync(SYSTEM_LOGS_FILE)) {
+      const fileContent = fs.readFileSync(SYSTEM_LOGS_FILE, 'utf8');
+      const lines = fileContent.trim().split('\n').filter(Boolean);
+      return lines.map(line => JSON.parse(line)).reverse(); // latest first
+    }
+  } catch (e) {
+    console.error('Failed to read system logs from disk:', e.message);
+  }
+  return [];
+}
+
+function clearSystemLogsOnDisk() {
+  try {
+    fs.writeFileSync(SYSTEM_LOGS_FILE, '', 'utf8');
+  } catch (e) {
+    console.error('Failed to clear system logs on disk:', e.message);
+  }
+}
+
+function pruneSystemLogsFile() {
+  try {
+    if (fs.existsSync(SYSTEM_LOGS_FILE)) {
+      const fileContent = fs.readFileSync(SYSTEM_LOGS_FILE, 'utf8');
+      const lines = fileContent.trim().split('\n').filter(Boolean);
+      const threeDaysAgo = Date.now() - 259200000;
+      const keptLines = [];
+      for (const line of lines) {
+        try {
+          const log = JSON.parse(line);
+          if (new Date(log.timestamp).getTime() >= threeDaysAgo) {
+            keptLines.push(line);
+          }
+        } catch (e) {
+          // Skip invalid lines
+        }
+      }
+      const finalLines = keptLines.slice(-3000); // Cap at 3000 lines
+      fs.writeFileSync(SYSTEM_LOGS_FILE, finalLines.join('\n') + (finalLines.length ? '\n' : ''), 'utf8');
+    }
+  } catch (e) {
+    console.error('Failed to prune system_logs.jsonl:', e.message);
+  }
+}
 
 // ============================================================
 // SSE Live Streaming — DevTools real-time push infrastructure
@@ -792,23 +872,31 @@ function logEvent(level, message, details = null) {
 
   const sanitizedMsg = sanitizeApiKeyString(message);
 
-  systemLogs.unshift({ 
+  const logEntry = { 
     timestamp, 
     level, 
     message: sanitizedMsg, 
     details: sanitizedDetails,
     sessionId,
     initiator
-  });
-  
-  // Prune logs older than 3 days (3 * 24 * 60 * 60 * 1000 = 259,200,000 ms)
-  const threeDaysAgo = Date.now() - 259200000;
-  while (systemLogs.length > 0 && new Date(systemLogs[systemLogs.length - 1].timestamp).getTime() < threeDaysAgo) {
-    systemLogs.pop();
+  };
+
+  // Append log entry dynamically to the shared append-only file
+  try {
+    fs.appendFileSync(SYSTEM_LOGS_FILE, JSON.stringify(logEntry) + '\n', 'utf8');
+  } catch (e) {
+    console.error('Failed to append to system_logs.jsonl:', e.message);
+  }
+
+  // Periodically prune logs (every 100 log events)
+  logCountSincePrune++;
+  if (logCountSincePrune >= 100) {
+    logCountSincePrune = 0;
+    pruneSystemLogsFile();
   }
   
   // Push log entry live to all connected SSE DevTools clients
-  broadcastSSE('log', systemLogs[0]);
+  broadcastSSE('log', logEntry);
 
   const consoleMsg = `[${timestamp}] [${level.toUpperCase()}] [Session: ${sessionId}] ${sanitizedMsg}`;
   if (level === 'error') {
@@ -2115,6 +2203,7 @@ app.get('/api/devtools/stream', requireAuth, (req, res) => {
 
 app.get('/api/devtools/keys/status', requireAuth, (req, res) => {
   // Synchronize dynamic statuses before returning
+  syncKeyPoolWithDisk();
   apiKeysPool.forEach((keyObj, idx) => {
     keyStatuses[idx].enabled = keyObj.enabled;
     keyStatuses[idx].requestsToday = keyObj.requestsToday;
@@ -2293,14 +2382,14 @@ app.get('/api/devtools/status', requireAuth, (req, res) => {
  * GET DevTools Logs (JSON Stream API)
  */
 app.get('/api/devtools/logs', requireAuth, (req, res) => {
-  res.json(systemLogs);
+  res.json(getSystemLogsFromDisk());
 });
 
 /**
  * POST DevTools Logs Clear
  */
 app.post('/api/devtools/logs/clear', requireAuth, (req, res) => {
-  systemLogs.length = 0;
+  clearSystemLogsOnDisk();
   logEvent('info', 'Developer Portal: Administrative command executed to clear all system logs.');
   res.json({ success: true });
 });
@@ -2310,6 +2399,7 @@ app.post('/api/devtools/logs/clear', requireAuth, (req, res) => {
  */
 app.get('/api/devtools/usage/summary', requireAuth, async (req, res) => {
   try {
+    loadUsageData(); // Synchronize with updates from other parallel processes
     const rate = await getExchangeRate();
     const daily = getDailyCosts30Days();
     res.json({
@@ -2329,6 +2419,7 @@ app.get('/api/devtools/usage/summary', requireAuth, async (req, res) => {
  */
 app.get('/api/devtools/usage/sessions', requireAuth, (req, res) => {
   try {
+    loadUsageData(); // Synchronize with updates from other parallel processes
     res.json(usageHistory);
   } catch (err) {
     logEvent('error', `Failed to retrieve session history: ${err.message}`);
@@ -2571,18 +2662,19 @@ app.get('/api/check-quotas', requireAuth, async (req, res) => {
  * Secure Legacy Debug Logs Dashboard Endpoint (Required Auth in Prod)
  */
 app.get('/api/logs', requireAuth, (req, res) => {
+  const logsList = getSystemLogsFromDisk();
   if (req.query.clear === 'true') {
-    systemLogs.length = 0;
+    clearSystemLogsOnDisk();
     logEvent('info', 'Logs cleared by user.');
     return res.redirect('/api/logs');
   }
 
   const format = req.query.format;
   if (format === 'json') {
-    return res.json(systemLogs);
+    return res.json(logsList);
   }
 
-  const logsHtml = systemLogs.map(entry => {
+  const logsHtml = logsList.map(entry => {
     let detailsHtml = '';
     if (entry.details) {
       detailsHtml = `<pre class="details">${JSON.stringify(entry.details, null, 2)}</pre>`;
@@ -2839,7 +2931,7 @@ app.get('/api/logs', requireAuth, (req, res) => {
           </section>
 
           <div class="log-list">
-            \${systemLogs.length === 0 
+            \${logsList.length === 0 
               ? '<div class="empty">No events logged yet. Perform a generation or revision request to populate the logs.</div>' 
               : logsHtml
             }
