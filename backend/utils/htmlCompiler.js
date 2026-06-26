@@ -135,10 +135,39 @@ function calculateSectionWeight(section) {
   const sectionType = section.sectionType || section.pageType || "";
   
   if (sectionType === 'CoverBlock' || sectionType === 'CoverPage') return 100;
-  if (sectionType === 'DataTable' || sectionType === 'ProcessTimeline') return 70;
-  if (sectionType === 'MultiCardGrid') return 55;
-  if (sectionType === 'TwoColumnBlock' || sectionType === 'TwoColumnSplit' || sectionType === 'MediaBlock' || sectionType === 'MixedMedia') return 45;
-  if (sectionType === 'HeroCallout') return 35;
+  
+  if (sectionType === 'DataTable') {
+    const rowsCount = (section.rows || []).length;
+    return 15 + (rowsCount * 8); // 15% base + 8% per row
+  }
+  
+  if (sectionType === 'ProcessTimeline') {
+    const stepsCount = (section.steps || []).length;
+    return 15 + (stepsCount * 9); // 15% base + 9% per step
+  }
+  
+  if (sectionType === 'MultiCardGrid') {
+    const cardsCount = (section.cards || []).length;
+    const rows = Math.ceil(cardsCount / 2);
+    return 15 + (rows * 15); // 15% base + 15% per grid row (2 cards per row)
+  }
+  
+  if (sectionType === 'TwoColumnBlock' || sectionType === 'TwoColumnSplit') {
+    const leftCount = (section.leftColumnBullets || []).length;
+    const rightCount = (section.rightColumnBullets || []).length;
+    const maxBullets = Math.max(leftCount, rightCount);
+    return 15 + (maxBullets * 5); // 15% base + 5% per bullet in taller column
+  }
+  
+  if (sectionType === 'HeroCallout') {
+    return 20; // flat 20% for callout
+  }
+  
+  if (sectionType === 'MediaBlock' || sectionType === 'MixedMedia') {
+    const bulletsCount = (section.bullets || []).length;
+    const base = section.imageId ? 30 : 15;
+    return base + (bulletsCount * 4); // base + 4% per bullet
+  }
   
   if (sectionType === 'StandardTextBlock' || sectionType === 'StandardText') {
     const bulletsCount = (section.bullets || []).length;
@@ -193,8 +222,8 @@ function trySplitSection(section, availableWeight) {
     const rows = section.rows || [];
     if (rows.length < minItems * 2) return null; // Need at least 4 rows to split
 
-    // Formula: Weight = 20% base + count * 10%
-    const maxRows = Math.floor((availableWeight - 20) / 10);
+    // Formula: Weight = 15% base + count * 8%
+    const maxRows = Math.floor((availableWeight - 15) / 8);
     if (maxRows >= minItems && (rows.length - maxRows) >= minItems) {
       return [
         {
@@ -215,8 +244,8 @@ function trySplitSection(section, availableWeight) {
     const steps = section.steps || [];
     if (steps.length < minItems * 2) return null; // Need at least 4 steps to split
 
-    // Formula: Weight = 20% base + count * 10%
-    const maxSteps = Math.floor((availableWeight - 20) / 10);
+    // Formula: Weight = 15% base + count * 9%
+    const maxSteps = Math.floor((availableWeight - 15) / 9);
     if (maxSteps >= minItems && (steps.length - maxSteps) >= minItems) {
       return [
         {
@@ -237,8 +266,9 @@ function trySplitSection(section, availableWeight) {
     const cards = section.cards || [];
     if (cards.length < minItems * 2) return null; // Need at least 4 cards to split
 
-    // Formula: Weight = 15% base + count * 10%
-    const maxCards = Math.floor((availableWeight - 15) / 10);
+    // Formula: Weight = 15% base + Math.ceil(count / 2) * 15%
+    const maxRows = Math.floor((availableWeight - 15) / 15);
+    const maxCards = maxRows * 2;
     if (maxCards >= minItems && (cards.length - maxCards) >= minItems) {
       return [
         {
