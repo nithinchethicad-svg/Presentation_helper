@@ -482,7 +482,8 @@ const defaultModels = [
   'gemini-3.1-flash-lite',
   'gemini-3.1-pro-preview',
   'gemini-2.5-flash',
-  'gemini-2.5-pro'
+  'gemini-2.5-pro',
+  'gemini-2.5-flash-lite'
 ];
 
 // Initialize Paid Key if configured
@@ -665,7 +666,8 @@ async function checkAllKeysQuotas() {
     'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-2.5-flash',
-    'gemini-2.5-pro'
+    'gemini-2.5-pro',
+    'gemini-2.5-flash-lite'
   ];
 
   logEvent('info', `Starting comprehensive Gemini API key quota verification check across ${modelsToCheck.length} models...`);
@@ -787,8 +789,8 @@ async function checkAllKeysQuotas() {
   logEvent('info', 'Completed comprehensive Gemini API key quota verification check across all models.');
 }
 
-// Get the model name from environment or default to gemini-3.5-flash.
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+// Default model name for system status reporting.
+const MODEL_NAME = 'gemini-3.5-flash';
 
 // Helper functions for disk-persistent append-only system logs
 function getSystemLogsFromDisk() {
@@ -920,15 +922,15 @@ logEvent('info', `Configured Gemini API keys for rotation: ${apiKeysPool.length}
  * Attempts execution across models in priority order to prevent 429 quota exhaustion.
  */
 // --- TASK-SPECIFIC GEMINI 3.X MODEL CHAINS ---
-const SUBTASK_OUTLINE_PARSING = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
-const SUBTASK_TAKEAWAY_GENERATION_PRO = ['gemini-3.1-pro-preview', 'gemini-3.5-flash'];
-const SUBTASK_TAKEAWAY_GENERATION_FLASH = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
-const SUBTASK_HTML_COMPILATION = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
-const SUBTASK_INTENT_EXTRACTION = ['gemini-3.1-flash-lite', 'gemini-3.5-flash'];
-const SUBTASK_CONTENT_DRAFTING = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
-const SUBTASK_REVISION_ANALYSIS = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
-const SUBTASK_HTML_BLOCK_EDITING_PRO = ['gemini-3.1-pro-preview', 'gemini-3.5-flash'];
-const SUBTASK_HTML_BLOCK_EDITING_FLASH = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
+const SUBTASK_OUTLINE_PARSING = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_TAKEAWAY_GENERATION_PRO = ['gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_TAKEAWAY_GENERATION_FLASH = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_HTML_COMPILATION = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_INTENT_EXTRACTION = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_CONTENT_DRAFTING = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_REVISION_ANALYSIS = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_HTML_BLOCK_EDITING_PRO = ['gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUBTASK_HTML_BLOCK_EDITING_FLASH = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const SUBTASK_CHAT_SUMMARIZATION = ['gemini-3.1-flash-lite', 'gemini-2.5-flash-lite'];
 
 // Legacy fallback chains for backward compatibility
@@ -1041,7 +1043,7 @@ async function generateContentWithFallback(contents, systemInstruction, extraCon
   if (latencyBudget === 'high_speed') {
     activeModelChain = modelChain.filter(m => !m.includes('pro'));
     if (activeModelChain.length === 0) {
-      activeModelChain = ['gemini-3.5-flash'];
+      activeModelChain = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
     }
     logEvent('info', `Latency Budget 'high_speed' active: routing directly to speed-optimized models: ${activeModelChain.join(', ')}`);
   }
@@ -1383,7 +1385,7 @@ async function generateContentStreamWithFallback(contents, systemInstruction, ex
   if (latencyBudget === 'high_speed') {
     activeModelChain = modelChain.filter(m => !m.includes('pro'));
     if (activeModelChain.length === 0) {
-      activeModelChain = ['gemini-3.5-flash'];
+      activeModelChain = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
     }
     logEvent('info', `Latency Budget 'high_speed' active: routing stream directly to speed-optimized models: ${activeModelChain.join(', ')}`);
   }

@@ -3847,25 +3847,8 @@ const KeyRow = ({ keyObj, onToggle }) => {
   const activeModelsCount = keyObj.modelEnabled ? Object.values(keyObj.modelEnabled).filter(v => v === 'active').length : 0;
 
   // Toggle model endpoint handler
-  const handleToggleModel = async (modelName, currentStatus) => {
-    try {
-      const newStatus = currentStatus === 'active' ? 'manual_off' : 'active';
-      const response = await fetch(`${BACKEND_URL}/api/devtools/keys/model/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': sessionStorage.getItem('devtools_token') ? `Bearer ${sessionStorage.getItem('devtools_token')}` : ''
-        },
-        body: JSON.stringify({ keyId: keyObj.id, modelName, enabled: newStatus === 'active' })
-      });
-      if (!response.ok) {
-        throw new Error('Failed to toggle model');
-      }
-      // SSE will broadcast the key update, which updates the state automatically!
-    } catch (err) {
-      console.error(err);
-      alert('Failed to toggle model: ' + err.message);
-    }
+  const handleToggleModel = (modelName, currentStatus) => {
+    onToggle(keyObj.id, currentStatus === 'active', modelName);
   };
 
   const isPaid = keyObj.type === 'paid';
